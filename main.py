@@ -1,21 +1,15 @@
 
-from database.conexion import obtener_conexion
+from database.inicializacion import inicializar_base_datos
 
 
 def main():
-    conexion = None
 
-    try:
-        conexion = obtener_conexion()
+    resultado = inicializar_base_datos()
 
-        print("Conexión con la base de datos establecida correctamente.")
-
-    except Exception:
-        print("No fue posible abrir la base de datos.")
-
-    finally:
-        if conexion is not None:
-            conexion.close()
+    if resultado:
+        print("Base de datos inicializada correctamente.")
+    else:
+        print("No fue posible inicializar la base de datos.")
 
 
 if __name__ == "__main__":
