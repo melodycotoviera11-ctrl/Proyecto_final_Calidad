@@ -228,3 +228,105 @@ def buscar_por_estudiante(carne):
     finally:
         if conexion is not None:
             conexion.close()
+
+
+def cancelar_reservacion(id_reservacion):
+    """
+    RF-09. Cancela una reservación activa mediante su ID.
+
+    Devuelve:
+        (True, mensaje, id_reservacion) si se cancela correctamente.
+        (False, mensaje, None) si el ID es inválido, no existe o ya está cancelada.
+    """
+
+    # Validar el ID antes de consultar la base de datos.
+    if isinstance(id_reservacion, bool):
+        return False, "El ID de la reservación debe ser un número entero mayor que cero.", None
+
+    try:
+        texto_id = str(id_reservacion).strip()
+
+        if not texto_id.isdigit():
+            raise ValueError
+
+        id_reservacion = int(texto_id)
+
+        if id_reservacion <= 0:
+            raise ValueError
+
+    except (ValueError, TypeError):
+        return False, "El ID de la reservación debe ser un número entero mayor que cero.", None
+
+    conexion = None
+
+    try:
+        conexion = obtener_conexion()
+
+        # La consulta, cancelación y auditoría se realizan
+        # dentro de la misma transacción.
+        conexion.execute("BEGIN IMMEDIATE")
+
+        try:
+            reservacion = conexion.execute(
+                """
+                SELECT id, estado
+                FROM reservaciones
+                WHERE id = ?
+                """,
+                (id_reservacion,),
+            ).fetchone()
+
+            if reservacion is None:
+                conexion.rollback()
+                return (
+                    False,
+                    f"No existe una reservación con el ID {id_reservacion}.",
+                    None,
+                )
+
+            if reservacion[1] == "cancelada":
+                conexion.rollback()
+                return (
+                    False,
+                    f"La reservación con ID {id_reservacion} ya se encuentra cancelada.",
+                    None,
+                )
+
+            conexion.execute(
+                """
+                UPDATE reservaciones
+                SET estado = 'cancelada'
+                WHERE id = ?
+                """,
+                (id_reservacion,),
+            )
+
+            registrar_auditoria(
+                conexion,
+                "cancelación",
+                "reservación",
+                id_reservacion,
+            )
+
+            conexion.commit()
+
+        except Exception:
+            conexion.rollback()
+            raise
+
+        return (
+            True,
+            f"La reservación con ID {id_reservacion} se canceló correctamente.",
+            id_reservacion,
+        )
+
+    except sqlite3.Error:
+        return (
+            False,
+            "No fue posible cancelar la reservación. Intente de nuevo.",
+            None,
+        )
+
+    finally:
+        if conexion is not None:
+            conexion.close()
