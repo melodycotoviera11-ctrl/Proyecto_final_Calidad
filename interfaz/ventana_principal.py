@@ -37,19 +37,19 @@ class VentanaPrincipal:
     def _crear_menu(self):
         barra_menu = tk.Menu(self.raiz)
 
-        menu_archivo = tk.Menu(
+        menu_sistema = tk.Menu(
             barra_menu,
             tearoff=False,
         )
 
-        menu_archivo.add_command(
+        menu_sistema.add_command(
             label="Salir",
             command=self.salir,
         )
 
         barra_menu.add_cascade(
-            label="Archivo",
-            menu=menu_archivo,
+            label="Sistema",
+            menu=menu_sistema,
         )
 
         self.raiz.config(
