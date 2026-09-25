@@ -109,3 +109,82 @@ def consultar_estudiantes():
     finally:
         if conexion is not None:
             conexion.close()
+
+
+def modificar_estudiante(carne, nombre, correo, estado):
+    """
+    RF-11. Modifica el nombre, correo y estado de un estudiante registrado.
+
+    El carné se utiliza únicamente para identificar al estudiante
+    y no puede modificarse.
+
+    Devuelve:
+        (True, mensaje) si la modificación se realiza correctamente.
+        (False, mensaje) si los datos son inválidos o el estudiante no existe.
+    """
+
+    # Reutilizar las mismas validaciones utilizadas al registrar estudiantes.
+    try:
+        carne, nombre, correo = validar_estudiante(
+            carne,
+            nombre,
+            correo,
+        )
+    except ValueError as error:
+        return False, str(error)
+
+    # Validar el estado.
+    if not isinstance(estado, str):
+        return False, "El estado del estudiante debe ser activo o inactivo."
+
+    estado = estado.strip().lower()
+
+    if estado not in ("activo", "inactivo"):
+        return False, "El estado del estudiante debe ser activo o inactivo."
+
+    conexion = None
+
+    try:
+        conexion = obtener_conexion()
+
+        # Comprobar que el estudiante exista antes de modificarlo.
+        estudiante = conexion.execute(
+            """
+            SELECT carne
+            FROM estudiantes
+            WHERE carne = ?
+            """,
+            (carne,),
+        ).fetchone()
+
+        if estudiante is None:
+            return (
+                False,
+                f"El carné {carne} no corresponde a ningún estudiante registrado.",
+            )
+
+        with conexion:
+            conexion.execute(
+                """
+                UPDATE estudiantes
+                SET nombre_completo = ?,
+                    correo = ?,
+                    estado = ?
+                WHERE carne = ?
+                """,
+                (
+                    nombre,
+                    correo,
+                    estado,
+                    estudiante[0],
+                ),
+            )
+
+        return True, "La información del estudiante se modificó correctamente."
+
+    except sqlite3.Error:
+        return False, "No fue posible modificar la información del estudiante."
+
+    finally:
+        if conexion is not None:
+            conexion.close()
