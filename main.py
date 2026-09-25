@@ -1,15 +1,19 @@
+from tkinter import messagebox
 
 from database.inicializacion import inicializar_base_datos
+from interfaz.ventana_principal import iniciar_interfaz
 
 
 def main():
 
-    resultado = inicializar_base_datos()
+    if not inicializar_base_datos():
+        messagebox.showerror(
+            "Error",
+            "No fue posible inicializar la base de datos.",
+        )
+        return
 
-    if resultado:
-        print("Base de datos inicializada correctamente.")
-    else:
-        print("No fue posible inicializar la base de datos.")
+    iniciar_interfaz()
 
 
 if __name__ == "__main__":
