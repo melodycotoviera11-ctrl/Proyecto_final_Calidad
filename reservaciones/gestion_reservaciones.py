@@ -330,3 +330,156 @@ def cancelar_reservacion(id_reservacion):
     finally:
         if conexion is not None:
             conexion.close()
+
+
+def modificar_reservacion(
+    id_reservacion,
+    codigo_sala,
+    fecha,
+    hora_inicio,
+    duracion,
+    cantidad_personas,
+    ahora=None,
+):
+    """
+    RF-13. Modifica una reservación activa.
+
+    Se pueden modificar la sala, fecha, hora de inicio,
+    duración y cantidad de personas.
+
+    El ID y el estudiante permanecen sin cambios.
+
+    Devuelve:
+        (True, mensaje, id_reservacion) si se modifica correctamente.
+        (False, mensaje, None) si la modificación no puede realizarse.
+    """
+
+    # Validar el ID.
+    if isinstance(id_reservacion, bool):
+        return (
+            False,
+            "El ID de la reservación debe ser un número entero mayor que cero.",
+            None,
+        )
+
+    try:
+        texto_id = str(id_reservacion).strip()
+
+        if not texto_id.isdigit():
+            raise ValueError
+
+        id_reservacion = int(texto_id)
+
+        if id_reservacion <= 0:
+            raise ValueError
+
+    except (ValueError, TypeError):
+        return (
+            False,
+            "El ID de la reservación debe ser un número entero mayor que cero.",
+            None,
+        )
+
+    conexion = None
+
+    try:
+        conexion = obtener_conexion()
+        conexion.execute("BEGIN IMMEDIATE")
+
+        try:
+            reservacion = conexion.execute(
+                """
+                SELECT id, carne, estado
+                FROM reservaciones
+                WHERE id = ?
+                """,
+                (id_reservacion,),
+            ).fetchone()
+
+            if reservacion is None:
+                conexion.rollback()
+
+                return (
+                    False,
+                    f"No existe una reservación con el ID {id_reservacion}.",
+                    None,
+                )
+
+            if reservacion[2] != "activa":
+                conexion.rollback()
+
+                return (
+                    False,
+                    f"La reservación con ID {id_reservacion} está cancelada "
+                    "y no puede modificarse.",
+                    None,
+                )
+
+            carne = reservacion[1]
+
+            # Reutilizar todas las reglas de negocio existentes.
+            # excluir_id evita que la reservación choque consigo misma.
+            datos = validar_reservacion(
+                conexion,
+                carne,
+                codigo_sala,
+                fecha,
+                hora_inicio,
+                duracion,
+                cantidad_personas,
+                ahora,
+                excluir_id=id_reservacion,
+            )
+
+            conexion.execute(
+                """
+                UPDATE reservaciones
+                SET codigo_sala = ?,
+                    fecha = ?,
+                    hora_inicio = ?,
+                    duracion = ?,
+                    cantidad_personas = ?
+                WHERE id = ?
+                """,
+                (
+                    datos["codigo_sala"],
+                    v.fecha_a_texto(datos["fecha"]),
+                    v.formatear_hora(datos["hora_inicio"]),
+                    datos["duracion"],
+                    datos["cantidad_personas"],
+                    id_reservacion,
+                ),
+            )
+
+            registrar_auditoria(
+                conexion,
+                "modificación",
+                "reservación",
+                id_reservacion,
+            )
+
+            conexion.commit()
+
+        except Exception:
+            conexion.rollback()
+            raise
+
+        return (
+            True,
+            f"La reservación con ID {id_reservacion} se modificó correctamente.",
+            id_reservacion,
+        )
+
+    except ValueError as error:
+        return False, str(error), None
+
+    except sqlite3.Error:
+        return (
+            False,
+            "No fue posible modificar la reservación. Intente de nuevo.",
+            None,
+        )
+
+    finally:
+        if conexion is not None:
+            conexion.close()
