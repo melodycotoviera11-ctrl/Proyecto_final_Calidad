@@ -106,6 +106,25 @@ class PanelReservaciones(ttk.Frame):
         if callable(refrescar):
             refrescar()
 
+    def hay_cambios_pendientes(self):
+        return (
+            self.vista_crear.hay_cambios_pendientes()
+            or self.vista_gestionar.hay_cambios_pendientes()
+        )
+
+
+    def guardar_pendientes(self):
+        for vista in (
+            self.vista_crear,
+            self.vista_gestionar,
+        ):
+            exito, mensaje = vista.guardar_pendientes()
+
+            if not exito:
+                return False, mensaje
+
+        return True, ""
+
 
 def abrir_ventana_de_prueba():
     """
