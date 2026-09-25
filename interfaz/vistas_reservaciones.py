@@ -196,12 +196,15 @@ class TablaReservaciones(ttk.Frame):
 class VistaCrearReservacion(VistaBase):
 
     titulo = "Crear reservación"
-    descripcion = ("Complete todos los campos. El sistema valida horario, "
-                   "capacidad, disponibilidad y el límite de reservaciones "
-                   "antes de guardar.")
+    descripcion = (
+        "Complete todos los campos. El sistema valida horario, "
+        "capacidad, disponibilidad y el límite de reservaciones "
+        "antes de guardar."
+    )
 
     def __init__(self, padre, on_volver=None, on_cambio=None):
         super().__init__(padre, on_volver)
+
         self.on_cambio = on_cambio
         self.nombres_por_carne = {}
 
@@ -216,64 +219,199 @@ class VistaCrearReservacion(VistaBase):
         self.var_cantidad = tk.StringVar()
         self.var_nombre = tk.StringVar()
 
-        self.combo_carne = ttk.Combobox(formulario, textvariable=self.var_carne, width=16)
-        agregar_campo(formulario, 0, ETIQUETAS["carne"], self.combo_carne,
-                      ttk.Label(formulario, textvariable=self.var_nombre,
-                                foreground=COLOR_SECUNDARIO))
-        self.var_carne.trace_add("write", lambda *_: self._mostrar_nombre())
+        self.combo_carne = ttk.Combobox(
+            formulario,
+            textvariable=self.var_carne,
+            width=16,
+        )
 
-        self.combo_sala = ttk.Combobox(formulario, textvariable=self.var_sala,
-                                       width=46, state="readonly")
-        agregar_campo(formulario, 1, ETIQUETAS["sala"], self.combo_sala,
-                      ancho_completo=True)
+        agregar_campo(
+            formulario,
+            0,
+            ETIQUETAS["carne"],
+            self.combo_carne,
+            ttk.Label(
+                formulario,
+                textvariable=self.var_nombre,
+                foreground=COLOR_SECUNDARIO,
+            ),
+        )
 
-        agregar_campo(formulario, 2, ETIQUETAS["fecha"],
-                      ttk.Entry(formulario, textvariable=self.var_fecha, width=16))
-        agregar_campo(formulario, 3, ETIQUETAS["hora_inicio"],
-                      ttk.Combobox(formulario, textvariable=self.var_hora,
-                                   values=HORAS_DISPONIBLES, width=8),
-                      ttk.Label(formulario, text="Formato de 24 horas, hora completa",
-                                foreground=COLOR_SECUNDARIO))
-        agregar_campo(formulario, 4, ETIQUETAS["duracion"],
-                      ttk.Combobox(formulario, textvariable=self.var_duracion,
-                                   values=DURACIONES, width=8, state="readonly"))
-        agregar_campo(formulario, 5, ETIQUETAS["cantidad"],
-                      ttk.Spinbox(formulario, textvariable=self.var_cantidad,
-                                  from_=1, to=99, width=8))
+        self.var_carne.trace_add(
+            "write",
+            lambda *_: self._mostrar_nombre(),
+        )
 
-        ttk.Button(self.botones, text="Crear reservación", style="Primario.TButton",
-                   command=self.crear).pack(side="left")
-        ttk.Button(self.botones, text="Limpiar",
-                   command=self.limpiar).pack(side="left", padx=(8, 0))
+        self.combo_sala = ttk.Combobox(
+            formulario,
+            textvariable=self.var_sala,
+            width=46,
+            state="readonly",
+        )
+
+        agregar_campo(
+            formulario,
+            1,
+            ETIQUETAS["sala"],
+            self.combo_sala,
+            ancho_completo=True,
+        )
+
+        agregar_campo(
+            formulario,
+            2,
+            ETIQUETAS["fecha"],
+            ttk.Entry(
+                formulario,
+                textvariable=self.var_fecha,
+                width=16,
+            ),
+        )
+
+        agregar_campo(
+            formulario,
+            3,
+            ETIQUETAS["hora_inicio"],
+            ttk.Combobox(
+                formulario,
+                textvariable=self.var_hora,
+                values=HORAS_DISPONIBLES,
+                width=8,
+            ),
+            ttk.Label(
+                formulario,
+                text="Formato de 24 horas, hora completa",
+                foreground=COLOR_SECUNDARIO,
+            ),
+        )
+
+        agregar_campo(
+            formulario,
+            4,
+            ETIQUETAS["duracion"],
+            ttk.Combobox(
+                formulario,
+                textvariable=self.var_duracion,
+                values=DURACIONES,
+                width=8,
+                state="readonly",
+            ),
+        )
+
+        agregar_campo(
+            formulario,
+            5,
+            ETIQUETAS["cantidad"],
+            ttk.Spinbox(
+                formulario,
+                textvariable=self.var_cantidad,
+                from_=1,
+                to=99,
+                width=8,
+            ),
+        )
+
+        ttk.Button(
+            self.botones,
+            text="Crear reservación",
+            style="Primario.TButton",
+            command=self.crear,
+        ).pack(side="left")
+
+        ttk.Button(
+            self.botones,
+            text="Limpiar",
+            command=self.limpiar,
+        ).pack(
+            side="left",
+            padx=(8, 0),
+        )
 
         self.limpiar()
         self.refrescar()
 
     @manejar_errores
     def refrescar(self):
-        activos = [e for e in consultar_estudiantes() if e[3] == "activo"]
-        self.nombres_por_carne = {e[0].upper(): e[1] for e in activos}
-        self.combo_carne["values"] = sorted(self.nombres_por_carne)
+        activos = [
+            estudiante
+            for estudiante in consultar_estudiantes()
+            if estudiante[3] == "activo"
+        ]
+
+        self.nombres_por_carne = {
+            estudiante[0].upper(): estudiante[1]
+            for estudiante in activos
+        }
+
+        self.combo_carne["values"] = sorted(
+            self.nombres_por_carne
+        )
+
         self.combo_sala["values"] = opciones_de_salas()
+
         self._mostrar_nombre()
 
     def _mostrar_nombre(self):
         carne = self.var_carne.get().strip().upper()
-        self.var_nombre.set(self.nombres_por_carne.get(carne, ""))
+
+        self.var_nombre.set(
+            self.nombres_por_carne.get(
+                carne,
+                "",
+            )
+        )
 
     def limpiar(self):
         self.var_carne.set("")
         self.var_sala.set("")
-        self.var_fecha.set(date.today().isoformat())
+        self.var_fecha.set(
+            date.today().isoformat()
+        )
         self.var_hora.set("")
         self.var_duracion.set("1")
         self.var_cantidad.set("1")
 
-    @manejar_errores
-    def crear(self):
+    def hay_cambios_pendientes(self):
+        """
+        RF-10.
+
+        Indica si la persona ingresó información en el formulario
+        que todavía no ha sido guardada como reservación.
+        """
+
+        return any([
+            self.var_carne.get().strip(),
+            self.var_sala.get().strip(),
+            self.var_hora.get().strip(),
+            self.var_fecha.get().strip()
+            != date.today().isoformat(),
+            self.var_duracion.get().strip() != "1",
+            self.var_cantidad.get().strip() != "1",
+        ])
+
+    def guardar_pendientes(self):
+        """
+        RF-10.
+
+        Intenta guardar la reservación que permanece pendiente
+        antes de cerrar la aplicación.
+
+        Devuelve:
+            (True, mensaje) si no había cambios pendientes
+            o si pudieron guardarse.
+
+            (False, mensaje) si la información pendiente
+            no cumple las validaciones.
+        """
+
+        if not self.hay_cambios_pendientes():
+            return True, ""
+
         exito, mensaje, _ = crear_reservacion(
             self.var_carne.get(),
-            codigo_desde_opcion(self.var_sala.get()),
+            codigo_desde_opcion(
+                self.var_sala.get()
+            ),
             self.var_fecha.get(),
             self.var_hora.get(),
             self.var_duracion.get(),
@@ -281,15 +419,48 @@ class VistaCrearReservacion(VistaBase):
         )
 
         if not exito:
-            # Se conservan los datos para que la persona corrija solo el campo indicado.
-            messagebox.showerror("No se creó la reservación", mensaje, parent=self)
-            return
+            return False, mensaje
 
-        messagebox.showinfo("Reservación creada", mensaje, parent=self)
         self.limpiar()
+
         if self.on_cambio is not None:
             self.on_cambio()
 
+        return True, mensaje
+
+    @manejar_errores
+    def crear(self):
+        exito, mensaje, _ = crear_reservacion(
+            self.var_carne.get(),
+            codigo_desde_opcion(
+                self.var_sala.get()
+            ),
+            self.var_fecha.get(),
+            self.var_hora.get(),
+            self.var_duracion.get(),
+            self.var_cantidad.get(),
+        )
+
+        if not exito:
+            # Se conservan los datos para que la persona
+            # corrija solamente el campo indicado.
+            messagebox.showerror(
+                "No se creó la reservación",
+                mensaje,
+                parent=self,
+            )
+            return
+
+        messagebox.showinfo(
+            "Reservación creada",
+            mensaje,
+            parent=self,
+        )
+
+        self.limpiar()
+
+        if self.on_cambio is not None:
+            self.on_cambio()
 
 # ---------------------------------------------------------------------------
 # RF-06. Consultar reservaciones

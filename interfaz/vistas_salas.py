@@ -30,6 +30,7 @@ class VistaSalas(ttk.Frame):
 
         self.on_volver = on_volver
         self.on_cambio = on_cambio
+        self._datos_originales = None
 
         ttk.Label(
             self,
@@ -359,6 +360,13 @@ class VistaSalas(ttk.Frame):
         else:
             self.var_estado.set("disponible")
 
+        self._datos_originales = (
+            self.var_codigo.get(),
+            self.var_nombre.get(),
+            self.var_capacidad.get(),
+            self.var_estado.get(),
+        )
+
     def modificar(self):
         codigo = self.var_codigo.get()
 
@@ -393,6 +401,7 @@ class VistaSalas(ttk.Frame):
             )
 
             self.refrescar()
+            self._datos_originales = None
 
             if self.on_cambio is not None:
                 self.on_cambio()
@@ -404,6 +413,71 @@ class VistaSalas(ttk.Frame):
                 parent=self,
             )
 
+    def hay_cambios_pendientes(self):
+        registro_pendiente = any([
+            self.var_codigo_nuevo.get().strip(),
+            self.var_nombre_nuevo.get().strip(),
+            self.var_capacidad_nueva.get().strip(),
+        ])
+
+        modificacion_pendiente = False
+
+        if self._datos_originales is not None:
+            datos_actuales = (
+                self.var_codigo.get(),
+                self.var_nombre.get(),
+                self.var_capacidad.get(),
+                self.var_estado.get(),
+            )
+
+            modificacion_pendiente = datos_actuales != self._datos_originales
+
+        return registro_pendiente or modificacion_pendiente
+
+
+    def guardar_pendientes(self):
+        if any([
+            self.var_codigo_nuevo.get().strip(),
+            self.var_nombre_nuevo.get().strip(),
+            self.var_capacidad_nueva.get().strip(),
+        ]):
+            exito, mensaje = registrar_sala(
+                self.var_codigo_nuevo.get(),
+                self.var_nombre_nuevo.get(),
+                self.var_capacidad_nueva.get(),
+                self.var_estado_nuevo.get(),
+            )
+
+            if not exito:
+                return False, mensaje
+
+            self.var_codigo_nuevo.set("")
+            self.var_nombre_nuevo.set("")
+            self.var_capacidad_nueva.set("")
+            self.var_estado_nuevo.set("disponible")
+
+        if self._datos_originales is not None:
+            datos_actuales = (
+                self.var_codigo.get(),
+                self.var_nombre.get(),
+                self.var_capacidad.get(),
+                self.var_estado.get(),
+            )
+
+            if datos_actuales != self._datos_originales:
+                exito, mensaje = modificar_sala(
+                    self.var_codigo.get(),
+                    self.var_nombre.get(),
+                    self.var_capacidad.get(),
+                    self.var_estado.get(),
+                )
+
+                if not exito:
+                    return False, mensaje
+
+                self._datos_originales = datos_actuales
+
+        return True, ""
 
 def abrir_ventana_de_prueba():
     from database.inicializacion import inicializar_base_datos

@@ -23,6 +23,7 @@ class VistaEstudiantes(ttk.Frame):
         super().__init__(padre, padding=(20, 16))
 
         self.on_volver = on_volver
+        self._datos_originales = None
 
         ttk.Label(
             self,
@@ -308,6 +309,12 @@ class VistaEstudiantes(ttk.Frame):
         self.var_nombre.set(valores[1])
         self.var_correo.set(valores[2])
         self.var_estado.set(valores[3].lower())
+        self._datos_originales = (
+            self.var_carne.get(),
+            self.var_nombre.get(),
+            self.var_correo.get(),
+            self.var_estado.get(),
+        )
 
     def modificar(self):
         carne = self.var_carne.get()
@@ -356,6 +363,7 @@ class VistaEstudiantes(ttk.Frame):
             )
 
             self.refrescar()
+            self._datos_originales = None
 
         except Exception:
             messagebox.showerror(
@@ -364,6 +372,69 @@ class VistaEstudiantes(ttk.Frame):
                 parent=self,
             )
 
+    def hay_cambios_pendientes(self):
+        registro_pendiente = any([
+            self.var_carne_nuevo.get().strip(),
+            self.var_nombre_nuevo.get().strip(),
+            self.var_correo_nuevo.get().strip(),
+        ])
+
+        modificacion_pendiente = False
+
+        if self._datos_originales is not None:
+            datos_actuales = (
+                self.var_carne.get(),
+                self.var_nombre.get(),
+                self.var_correo.get(),
+                self.var_estado.get(),
+            )
+
+            modificacion_pendiente = datos_actuales != self._datos_originales
+
+        return registro_pendiente or modificacion_pendiente
+
+
+    def guardar_pendientes(self):
+        if any([
+            self.var_carne_nuevo.get().strip(),
+            self.var_nombre_nuevo.get().strip(),
+            self.var_correo_nuevo.get().strip(),
+        ]):
+            exito, mensaje = registrar_estudiante(
+                self.var_carne_nuevo.get(),
+                self.var_nombre_nuevo.get(),
+                self.var_correo_nuevo.get(),
+            )
+
+            if not exito:
+                return False, mensaje
+
+            self.var_carne_nuevo.set("")
+            self.var_nombre_nuevo.set("")
+            self.var_correo_nuevo.set("")
+
+        if self._datos_originales is not None:
+            datos_actuales = (
+                self.var_carne.get(),
+                self.var_nombre.get(),
+                self.var_correo.get(),
+                self.var_estado.get(),
+            )
+
+            if datos_actuales != self._datos_originales:
+                exito, mensaje = modificar_estudiante(
+                    self.var_carne.get(),
+                    self.var_nombre.get(),
+                    self.var_correo.get(),
+                    self.var_estado.get(),
+                )
+
+                if not exito:
+                    return False, mensaje
+
+                self._datos_originales = datos_actuales
+
+        return True, ""
 
 def abrir_ventana_de_prueba():
     """Permite probar esta vista antes de integrarla a la ventana principal."""

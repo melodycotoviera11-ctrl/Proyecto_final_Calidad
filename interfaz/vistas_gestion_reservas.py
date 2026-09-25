@@ -31,6 +31,7 @@ class VistaGestionReservaciones(ttk.Frame):
 
         self.on_volver = on_volver
         self.on_cambio = on_cambio
+        self._datos_originales = None
 
         ttk.Label(
             self,
@@ -213,6 +214,7 @@ class VistaGestionReservaciones(ttk.Frame):
         self.var_hora.set("")
         self.var_duracion.set("1")
         self.var_cantidad.set("1")
+        self._datos_originales = None
 
     def _seleccionar_reservacion(self, _evento=None):
         seleccion = self.tabla.arbol.selection()
@@ -252,6 +254,15 @@ class VistaGestionReservaciones(ttk.Frame):
             if str(opcion).startswith(f"{codigo_sala} "):
                 self.var_sala.set(opcion)
                 break
+
+        self._datos_originales = (
+            self.var_id.get(),
+            codigo_desde_opcion(self.var_sala.get()),
+            self.var_fecha.get(),
+            self.var_hora.get(),
+            self.var_duracion.get(),
+            self.var_cantidad.get(),
+        )
 
     def modificar(self):
         id_reservacion = self.var_id.get()
@@ -362,6 +373,39 @@ class VistaGestionReservaciones(ttk.Frame):
                 parent=self,
             )
 
+    def hay_cambios_pendientes(self):
+        if self._datos_originales is None:
+            return False
+
+        datos_actuales = (
+            self.var_id.get(),
+            codigo_desde_opcion(self.var_sala.get()),
+            self.var_fecha.get(),
+            self.var_hora.get(),
+            self.var_duracion.get(),
+            self.var_cantidad.get(),
+        )
+
+        return datos_actuales != self._datos_originales
+
+
+    def guardar_pendientes(self):
+        if not self.hay_cambios_pendientes():
+            return True, ""
+
+        exito, mensaje, _ = modificar_reservacion(
+            self.var_id.get(),
+            codigo_desde_opcion(self.var_sala.get()),
+            self.var_fecha.get(),
+            self.var_hora.get(),
+            self.var_duracion.get(),
+            self.var_cantidad.get(),
+        )
+
+        if not exito:
+            return False, mensaje
+
+        return True, mensaje
 
 def abrir_ventana_de_prueba():
     from database.inicializacion import inicializar_base_datos
