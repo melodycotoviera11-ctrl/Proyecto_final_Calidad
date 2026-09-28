@@ -170,6 +170,49 @@ def consultar_reservaciones():
         if conexion is not None:
             conexion.close()
 
+def consultar_auditoria():
+    """
+    RF-17. Consulta el historial de auditoría.
+
+    Devuelve los registros ordenados del más reciente
+    al más antiguo.
+
+    Cada fila contiene:
+        id,
+        fecha_hora,
+        tipo_accion,
+        entidad,
+        identificador.
+    """
+
+    conexion = None
+
+    try:
+        conexion = obtener_conexion()
+
+        return conexion.execute(
+            """
+            SELECT
+                id,
+                fecha_hora,
+                tipo_accion,
+                entidad,
+                identificador
+            FROM auditoria
+            ORDER BY id DESC
+            """
+        ).fetchall()
+
+    except sqlite3.Error as error:
+
+        raise RuntimeError(
+            "No fue posible consultar el historial de auditoría."
+        ) from error
+
+    finally:
+
+        if conexion is not None:
+            conexion.close()
 
 def buscar_por_estudiante(carne):
     """

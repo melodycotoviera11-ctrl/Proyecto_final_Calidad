@@ -10,21 +10,25 @@ class TestPanelReservaciones(unittest.TestCase):
         panel = object.__new__(PanelReservaciones)
 
         panel.vista_consultar = mock.Mock()
+        panel.vista_panel = mock.Mock()
 
         PanelReservaciones._actualizar_reservaciones(panel)
 
         panel.vista_consultar.refrescar.assert_called_once_with()
+        panel.vista_panel.refrescar.assert_called_once_with()
 
     def test_rf15_callback_de_crear_apunta_a_actualizacion(self):
         panel = object.__new__(PanelReservaciones)
 
         panel.vista_consultar = mock.Mock()
+        panel.vista_panel = mock.Mock()
 
         callback = panel._actualizar_reservaciones
 
         callback()
 
         panel.vista_consultar.refrescar.assert_called_once_with()
+        panel.vista_panel.refrescar.assert_called_once_with()
 
 
 if __name__ == "__main__":

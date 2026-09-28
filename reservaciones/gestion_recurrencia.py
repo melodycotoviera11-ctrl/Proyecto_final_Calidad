@@ -12,14 +12,16 @@ La lógica de validación y persistencia se reutiliza desde los módulos
 existentes del proyecto.
 """
 
-from datetime import timedelta
+from datetime import date, timedelta
 from uuid import uuid4
 
 from database.conexion import obtener_conexion
 from reservaciones import validaciones as v
-from reservaciones.gestion_reservaciones import insertar_reservacion
+from reservaciones.gestion_reservaciones import (
+    insertar_reservacion,
+    registrar_auditoria,
+)
 from reservaciones.reglas import validar_reservacion
-
 
 MINIMO_OCURRENCIAS = 2
 MAXIMO_OCURRENCIAS = 8
@@ -171,3 +173,163 @@ def crear_reservacion_recurrente(
 
     finally:
         conexion.close()
+
+def obtener_serie_id(id_reservacion):
+    """
+    Obtiene el identificador de la serie recurrente a la que pertenece
+    una reservación.
+
+    Returns:
+        str | None: serie_id de la reservación.
+    """
+
+    conexion = obtener_conexion()
+
+    try:
+        fila = conexion.execute(
+            """
+            SELECT serie_id
+            FROM reservaciones
+            WHERE id = ?
+            """,
+            (id_reservacion,),
+        ).fetchone()
+
+        if fila is None:
+            return None
+
+        return fila[0]
+
+    finally:
+        conexion.close()
+
+
+def cancelar_ocurrencias_futuras(
+    serie_id,
+    fecha_desde=None,
+):
+    """
+    RF-14.
+
+    Cancela todas las ocurrencias activas de una serie recurrente
+    cuya fecha sea igual o posterior a fecha_desde.
+
+    Cada cancelación queda registrada en auditoría.
+
+    Args:
+        serie_id: identificador de la serie recurrente.
+        fecha_desde: fecha a partir de la cual se cancelan
+                     las ocurrencias. Si no se indica, se utiliza
+                     la fecha actual.
+
+    Returns:
+        tuple:
+            (True, mensaje, cantidad_cancelada)
+            (False, mensaje, 0)
+    """
+
+    if not serie_id:
+        return (
+            False,
+            "La reservación seleccionada no pertenece "
+            "a una serie recurrente.",
+            0,
+        )
+
+    if fecha_desde is None:
+        fecha_desde = date.today().isoformat()
+
+    try:
+        fecha_desde = v.fecha_a_texto(
+            v.validar_fecha(fecha_desde)
+        )
+    except ValueError:
+        return (
+            False,
+            "La fecha indicada no es válida.",
+            0,
+        )
+
+    conexion = None
+
+    try:
+        conexion = obtener_conexion()
+
+        conexion.execute(
+            "BEGIN IMMEDIATE"
+        )
+
+        ocurrencias = conexion.execute(
+            """
+            SELECT id
+            FROM reservaciones
+            WHERE serie_id = ?
+              AND fecha >= ?
+              AND estado = 'activa'
+            ORDER BY fecha ASC, hora_inicio ASC, id ASC
+            """,
+            (
+                serie_id,
+                fecha_desde,
+            ),
+        ).fetchall()
+
+        if not ocurrencias:
+            conexion.rollback()
+
+            return (
+                False,
+                "No existen ocurrencias futuras activas "
+                "para cancelar en esta serie.",
+                0,
+            )
+
+        ids = [
+            fila[0]
+            for fila in ocurrencias
+        ]
+
+        for id_reservacion in ids:
+
+            conexion.execute(
+                """
+                UPDATE reservaciones
+                SET estado = 'cancelada'
+                WHERE id = ?
+                """,
+                (id_reservacion,),
+            )
+
+            registrar_auditoria(
+                conexion,
+                "cancelación",
+                "reservación",
+                id_reservacion,
+            )
+
+        conexion.commit()
+
+        cantidad = len(ids)
+
+        return (
+            True,
+            (
+                f"Se cancelaron {cantidad} ocurrencias "
+                "futuras de la serie."
+            ),
+            cantidad,
+        )
+
+    except Exception:
+        if conexion is not None:
+            conexion.rollback()
+
+        return (
+            False,
+            "No fue posible cancelar las ocurrencias futuras.",
+            0,
+        )
+
+    finally:
+        if conexion is not None:
+            conexion.close()

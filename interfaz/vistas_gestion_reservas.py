@@ -15,6 +15,11 @@ from reservaciones.gestion_reservaciones import (
     modificar_reservacion,
 )
 
+from reservaciones.gestion_recurrencia import (
+    obtener_serie_id,
+    cancelar_ocurrencias_futuras,
+)
+
 from interfaz.vistas_reservaciones import (
     DURACIONES,
     HORAS_DISPONIBLES,
@@ -177,6 +182,15 @@ class VistaGestionReservaciones(ttk.Frame):
             text="Cancelar reservación",
             command=self.cancelar,
         ).pack(side="left", padx=(8, 0))
+
+        ttk.Button(
+            botones,
+            text="Cancelar futuras",
+            command=self.cancelar_ocurrencias_futuras,
+        ).pack(
+            side="left",
+            padx=(8, 0),
+        )
 
         ttk.Button(
             botones,
@@ -370,6 +384,89 @@ class VistaGestionReservaciones(ttk.Frame):
             messagebox.showerror(
                 "Error",
                 "Ocurrió un error inesperado. La operación no se completó.",
+                parent=self,
+            )
+
+    def cancelar_ocurrencias_futuras(self):
+        """
+        RF-14.
+
+        Cancela todas las ocurrencias futuras de la serie
+        correspondiente a la reservación seleccionada.
+        """
+
+        id_reservacion = self.var_id.get()
+
+        if not id_reservacion:
+            messagebox.showerror(
+                "Seleccione una reservación",
+                (
+                    "Debe seleccionar una reservación "
+                    "antes de cancelar las ocurrencias futuras."
+                ),
+                parent=self,
+            )
+            return
+
+        serie_id = obtener_serie_id(
+            id_reservacion
+        )
+
+        if not serie_id:
+            messagebox.showwarning(
+                "Reservación no recurrente",
+                (
+                    "La reservación seleccionada no "
+                    "pertenece a una serie recurrente."
+                ),
+                parent=self,
+            )
+            return
+
+        confirmar = messagebox.askyesno(
+            "Cancelar ocurrencias futuras",
+            (
+                "¿Desea cancelar todas las ocurrencias "
+                "futuras de esta serie?\n\n"
+                "Las ocurrencias anteriores no serán modificadas."
+            ),
+            parent=self,
+        )
+
+        if not confirmar:
+            return
+
+        try:
+            exito, mensaje, _ = cancelar_ocurrencias_futuras(
+                serie_id
+            )
+
+            if not exito:
+                messagebox.showwarning(
+                    "No se cancelaron ocurrencias",
+                    mensaje,
+                    parent=self,
+                )
+                return
+
+            messagebox.showinfo(
+                "Ocurrencias canceladas",
+                mensaje,
+                parent=self,
+            )
+
+            self.refrescar()
+
+            if self.on_cambio is not None:
+                self.on_cambio()
+
+        except Exception:
+            messagebox.showerror(
+                "Error",
+                (
+                    "Ocurrió un error inesperado. "
+                    "La operación no se completó."
+                ),
                 parent=self,
             )
 
