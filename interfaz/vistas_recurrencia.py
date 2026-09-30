@@ -218,6 +218,65 @@ class VistaReservacionRecurrente(VistaBase):
         self.var_cantidad.set("1")
         self.var_ocurrencias.set("2")
 
+    def hay_cambios_pendientes(self):
+        """
+        RF-10.
+
+        Indica si se ingresaron datos para una reservación recurrente
+        que todavía no ha sido guardada.
+        """
+
+        return any([
+            self.var_carne.get().strip(),
+            self.var_sala.get().strip(),
+            self.var_hora.get().strip(),
+            self.var_fecha.get().strip() != date.today().isoformat(),
+            self.var_duracion.get().strip() != "1",
+            self.var_cantidad.get().strip() != "1",
+            self.var_ocurrencias.get().strip() != "2",
+        ])
+
+    def guardar_pendientes(self):
+        """
+        RF-10.
+
+        Intenta guardar la serie recurrente pendiente antes
+        de cerrar la aplicación.
+        """
+
+        if not self.hay_cambios_pendientes():
+            return True, ""
+
+        try:
+            crear_reservacion_recurrente(
+                carne=self.var_carne.get().strip(),
+                codigo_sala=codigo_desde_opcion(
+                    self.var_sala.get()
+                ),
+                fecha_inicio=self.var_fecha.get().strip(),
+                hora_inicio=self.var_hora.get().strip(),
+                duracion=self.var_duracion.get().strip(),
+                cantidad_personas=self.var_cantidad.get().strip(),
+                cantidad_ocurrencias=self.var_ocurrencias.get().strip(),
+            )
+
+        except ValueError as error:
+            return False, str(error)
+
+        except Exception:
+            return (
+                False,
+                "Ocurrió un error inesperado. "
+                "La serie recurrente no pudo guardarse."
+            )
+
+        self.limpiar()
+
+        if self.on_cambio is not None:
+            self.on_cambio()
+
+        return True, "Serie recurrente guardada correctamente."
+
     @manejar_errores
     def crear(self):
         carne = self.var_carne.get().strip()
