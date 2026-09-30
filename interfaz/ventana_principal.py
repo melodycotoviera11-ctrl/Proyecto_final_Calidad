@@ -469,6 +469,7 @@ class VentanaPrincipal:
             self.vista_salas,
             self.vista_crear_reservacion,
             self.vista_gestion_reservaciones,
+            self.vista_recurrencia,
         )
 
         for vista in vistas_editables:
@@ -494,6 +495,7 @@ class VentanaPrincipal:
             self.vista_salas,
             self.vista_crear_reservacion,
             self.vista_gestion_reservaciones,
+            self.vista_recurrencia,
         )
 
         for vista in vistas_editables:
