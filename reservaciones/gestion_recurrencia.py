@@ -12,7 +12,7 @@ La lógica de validación y persistencia se reutiliza desde los módulos
 existentes del proyecto.
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from uuid import uuid4
 
 from database.conexion import obtener_conexion
@@ -21,7 +21,12 @@ from reservaciones.gestion_reservaciones import (
     insertar_reservacion,
     registrar_auditoria,
 )
-from reservaciones.reglas import validar_reservacion
+
+from reservaciones.reglas import (
+    MAXIMO_RESERVACIONES_VIGENTES,
+    contar_reservaciones_vigentes,
+    validar_reservacion,
+)
 
 MINIMO_OCURRENCIAS = 2
 MAXIMO_OCURRENCIAS = 8
@@ -99,26 +104,10 @@ def crear_reservacion_recurrente(
     RF-14: crea una serie de reservaciones semanales.
 
     Todas las ocurrencias se validan antes de confirmar la transacción.
-    Si una sola ocurrencia es inválida o presenta un conflicto,
-    ninguna reservación de la serie queda almacenada.
-
-    Args:
-        carne: carné del estudiante.
-        codigo_sala: código de la sala.
-        fecha_inicio: fecha de inicio de la serie.
-        hora_inicio: hora inicial.
-        duracion: duración de cada reservación.
-        cantidad_personas: cantidad de personas.
-        cantidad_ocurrencias: cantidad de reservaciones de la serie.
-        ahora: fecha/hora de referencia opcional para las pruebas.
-
-    Returns:
-        dict: identificador de la serie y los IDs de las reservaciones creadas.
-
-    Raises:
-        ValueError: si alguna ocurrencia incumple una regla de negocio.
-        Exception: si ocurre un error durante la transacción.
+    Si una o más ocurrencias presentan conflictos, se informa un resumen
+    completo y ninguna reservación de la serie queda almacenada.
     """
+
     fechas = generar_fechas_semanales(
         fecha_inicio,
         cantidad_ocurrencias,
@@ -132,33 +121,92 @@ def crear_reservacion_recurrente(
         serie_id = str(uuid4())
 
         datos_validados = []
+        conflictos = []
 
-        # Primero se validan TODAS las ocurrencias.
+        # Revisar todas las ocurrencias antes de guardar.
         for fecha in fechas:
-            datos = validar_reservacion(
-                conexion=conexion,
-                carne=carne,
-                codigo_sala=codigo_sala,
-                fecha=fecha,
-                hora_inicio=hora_inicio,
-                duracion=duracion,
-                cantidad_personas=cantidad_personas,
-                ahora=ahora,
+            try:
+                datos = validar_reservacion(
+                    conexion=conexion,
+                    carne=carne,
+                    codigo_sala=codigo_sala,
+                    fecha=fecha,
+                    hora_inicio=hora_inicio,
+                    duracion=duracion,
+                    cantidad_personas=cantidad_personas,
+                    ahora=ahora,
+                )
+
+                datos_validados.append(datos)
+
+            except ValueError as error:
+                conflictos.append(
+                    f"{fecha.isoformat()}: {error}"
+                )
+
+        # RN-11:
+        # También se deben contar las nuevas reservaciones de esta serie.
+        #
+        # Antes este control no funcionaba porque todas las ocurrencias
+        # se validaban antes de insertar alguna, por lo que cada una veía
+        # únicamente las reservaciones que ya existían en la BD.
+        if not conflictos and datos_validados:
+
+            referencia = (
+                ahora
+                if ahora is not None
+                else datetime.now()
             )
 
-            datos_validados.append(datos)
+            vigentes = contar_reservaciones_vigentes(
+                conexion,
+                datos_validados[0]["carne"],
+                referencia,
+            )
 
-        # Solo si todas las ocurrencias son válidas se insertan.
+            total_resultante = (
+                vigentes
+                + len(datos_validados)
+            )
+
+            if (
+                total_resultante
+                > MAXIMO_RESERVACIONES_VIGENTES
+            ):
+                conflictos.append(
+                    "Límite de reservaciones: el estudiante ya tiene "
+                    f"{vigentes} reservaciones activas presentes o futuras "
+                    f"y la serie agregaría {len(datos_validados)}. "
+                    f"El máximo permitido es "
+                    f"{MAXIMO_RESERVACIONES_VIGENTES}."
+                )
+
+        # Si existe cualquier conflicto, no se guarda nada.
+        if conflictos:
+
+            detalle = "\n- ".join(
+                conflictos
+            )
+
+            raise ValueError(
+                "Se encontraron conflictos en la serie recurrente.\n- "
+                + detalle
+            )
+
+        # Solo si toda la serie es válida se almacena.
         ids_reservaciones = []
 
         for datos in datos_validados:
+
             id_reservacion = insertar_reservacion(
                 conexion,
                 datos,
                 serie_id=serie_id,
             )
 
-            ids_reservaciones.append(id_reservacion)
+            ids_reservaciones.append(
+                id_reservacion
+            )
 
         conexion.commit()
 
