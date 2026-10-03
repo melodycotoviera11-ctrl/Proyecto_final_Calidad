@@ -2,7 +2,10 @@
 
 import unittest
 
-from reservaciones.gestion_reservaciones import crear_reservacion
+from reservaciones.gestion_reservaciones import (
+    crear_reservacion,
+    normalizar_id_reservacion,
+)
 from tests.utilidades import (
     ACTIVO, ACTIVO_2, AHORA, HOY, INACTIVO, MANANA, PASADO_MANANA,
     PruebaConBaseTemporal,
@@ -30,16 +33,45 @@ class TestCrearReservacion(PruebaConBaseTemporal):
         exito, mensaje, id_reservacion = self.crear()
 
         self.assertTrue(exito)
-        self.assertIsInstance(id_reservacion, int)
-        self.assertIn(f"ID {id_reservacion}", mensaje)
+
+        self.assertIsInstance(
+            id_reservacion,
+            str,
+        )
+
+        self.assertRegex(
+            id_reservacion,
+            r"^R\d{4,}$",
+        )
+
+        self.assertIn(
+            f"ID {id_reservacion}",
+            mensaje,
+        )
+
+        id_interno = normalizar_id_reservacion(
+            id_reservacion
+        )
 
         fila = self.sql(
             "SELECT carne, codigo_sala, fecha, hora_inicio, duracion, "
             "cantidad_personas, estado FROM reservaciones WHERE id = ?",
-            (id_reservacion,),
+            (id_interno,),
         )
+
         self.assertEqual(
-            fila, [(ACTIVO, "S02", MANANA, "10:00", 1, 2, "activa")]
+            fila,
+            [
+                (
+                    ACTIVO,
+                    "S02",
+                    MANANA,
+                    "10:00",
+                    1,
+                    2,
+                    "activa",
+                )
+            ],
         )
 
     def test_registra_auditoria_de_creacion(self):
@@ -48,13 +80,38 @@ class TestCrearReservacion(PruebaConBaseTemporal):
         self.assertEqual(auditoria, [("creación", "reservación", str(id_reservacion))])
 
     def test_normaliza_carne_sala_y_hora(self):
-        exito, _, id_reservacion = self.crear(carne="  a001234567 ", sala="s02",
-                                              hora="9:00", duracion="2", cantidad="3")
+        exito, _, id_reservacion = self.crear(
+            carne="  a001234567 ",
+            sala="s02",
+            hora="9:00",
+            duracion="2",
+            cantidad="3",
+        )
+
         self.assertTrue(exito)
-        fila = self.sql("SELECT carne, codigo_sala, hora_inicio, duracion, "
-                        "cantidad_personas FROM reservaciones WHERE id = ?",
-                        (id_reservacion,))
-        self.assertEqual(fila, [(ACTIVO, "S02", "09:00", 2, 3)])
+
+        id_interno = normalizar_id_reservacion(
+            id_reservacion
+        )
+
+        fila = self.sql(
+            "SELECT carne, codigo_sala, hora_inicio, duracion, "
+            "cantidad_personas FROM reservaciones WHERE id = ?",
+            (id_interno,),
+        )
+
+        self.assertEqual(
+            fila,
+            [
+                (
+                    ACTIVO,
+                    "S02",
+                    "09:00",
+                    2,
+                    3,
+                )
+            ],
+        )
 
     def test_reservacion_hoy_hora_futura(self):
         exito, _, _ = self.crear(fecha=HOY, hora="10:00")
@@ -62,15 +119,66 @@ class TestCrearReservacion(PruebaConBaseTemporal):
 
     def test_ids_unicos_y_no_reutilizados(self):
         # RN-13: el ID de una cancelada nunca se reutiliza.
+
         _, _, primero = self.crear()
-        self.sql("UPDATE reservaciones SET estado = 'cancelada' WHERE id = ?", (primero,))
+
+        primero_interno = normalizar_id_reservacion(
+            primero
+        )
+
+        self.sql(
+            """
+            UPDATE reservaciones
+            SET estado = 'cancelada'
+            WHERE id = ?
+            """,
+            (primero_interno,),
+        )
+
         _, _, segundo = self.crear()
-        self.assertGreater(segundo, primero)
 
-        self.sql("DELETE FROM reservaciones WHERE id = ?", (segundo,))
+        segundo_interno = normalizar_id_reservacion(
+            segundo
+        )
+
+        self.assertGreater(
+            segundo_interno,
+            primero_interno,
+        )
+
+        self.sql(
+            """
+            DELETE FROM reservaciones
+            WHERE id = ?
+            """,
+            (segundo_interno,),
+        )
+
         _, _, tercero = self.crear()
-        self.assertGreater(tercero, segundo)
 
+        tercero_interno = normalizar_id_reservacion(
+            tercero
+        )
+
+        self.assertGreater(
+            tercero_interno,
+            segundo_interno,
+        )
+
+        self.assertRegex(
+            primero,
+            r"^R\d{4,}$",
+        )
+
+        self.assertRegex(
+            segundo,
+            r"^R\d{4,}$",
+        )
+
+        self.assertRegex(
+            tercero,
+            r"^R\d{4,}$",
+        )
     # --- RN-01 / RN-08 ----------------------------------------------------
 
     def test_estudiante_inexistente(self):

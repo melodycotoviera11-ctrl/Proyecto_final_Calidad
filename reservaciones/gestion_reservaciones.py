@@ -28,8 +28,61 @@ COLUMNAS_RESERVACION = (
     "estado",
 )
 
+def formatear_id_reservacion(id_interno):
+    """
+    Convierte el ID entero utilizado internamente por SQLite
+    al formato público requerido: R0001, R0002, etc.
+    """
+    return f"R{int(id_interno):04d}"
+
+
+def normalizar_id_reservacion(id_reservacion):
+    """
+    Convierte un ID recibido al entero utilizado internamente.
+
+    Acepta:
+        1
+        "1"
+        "R0001"
+        "r0001"
+
+    Devuelve:
+        1
+    """
+
+    if isinstance(id_reservacion, bool):
+        raise ValueError(
+            "El ID de la reservación debe tener formato R0001."
+        )
+
+    if id_reservacion is None:
+        raise ValueError(
+            "El ID de la reservación debe tener formato R0001."
+        )
+
+    texto = str(
+        id_reservacion
+    ).strip().upper()
+
+    if texto.startswith("R"):
+        texto = texto[1:]
+
+    if not texto.isdigit():
+        raise ValueError(
+            "El ID de la reservación debe tener formato R0001."
+        )
+
+    id_interno = int(texto)
+
+    if id_interno <= 0:
+        raise ValueError(
+            "El ID de la reservación debe tener formato R0001."
+        )
+
+    return id_interno
+
 _SELECT_DETALLE = """
-    SELECT r.id,
+    SELECT 'R' || printf('%04d', r.id),
            r.carne,
            e.nombre_completo,
            r.codigo_sala,
@@ -47,21 +100,42 @@ _SELECT_DETALLE = """
 _ORDEN_DETALLE = " ORDER BY r.fecha ASC, r.hora_inicio ASC, r.id ASC"
 
 
-def registrar_auditoria(conexion, tipo_accion, entidad, identificador):
+def registrar_auditoria(
+    conexion,
+    tipo_accion,
+    entidad,
+    identificador,
+):
     """
-    Inserta un registro en la tabla auditoria usando la MISMA conexión,
+    Inserta un registro en la tabla auditoria usando la misma conexión,
     para que se confirme o se revierta junto con la operación (RF-17).
 
-    Nota de integración: si P4 publica una función propia para RF-17,
-    basta con reemplazar el cuerpo de esta función por esa llamada.
+    Los identificadores de reservación se almacenan con formato R0001.
     """
+
+    if entidad == "reservación":
+        try:
+            identificador = formatear_id_reservacion(
+                normalizar_id_reservacion(
+                    identificador
+                )
+            )
+
+        except ValueError:
+            identificador = str(
+                identificador
+            )
+
     conexion.execute(
         """
-        INSERT INTO auditoria (fecha_hora, tipo_accion, entidad, identificador)
+        INSERT INTO auditoria
+            (fecha_hora, tipo_accion, entidad, identificador)
         VALUES (?, ?, ?, ?)
         """,
         (
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
             tipo_accion,
             entidad,
             str(identificador),
@@ -69,35 +143,61 @@ def registrar_auditoria(conexion, tipo_accion, entidad, identificador):
     )
 
 
-def insertar_reservacion(conexion, datos, serie_id=None):
+def insertar_reservacion(
+    conexion,
+    datos,
+    serie_id=None,
+):
     """
-    Inserta una reservación YA VALIDADA con estado 'activa' y registra la
-    auditoría. No confirma la transacción: eso le corresponde a quien llama.
-    Pensada también para RF-14 (serie recurrente, usando serie_id).
+    Inserta una reservación ya validada con estado activa.
 
-    El ID se genera con AUTOINCREMENT, por lo que nunca se reutiliza,
-    ni siquiera el de una reservación cancelada (RN-13).
+    SQLite mantiene internamente un ID entero AUTOINCREMENT,
+    mientras que la aplicación utiliza el formato público
+    R0001, R0002, etc.
     """
+
     cursor = conexion.execute(
         """
         INSERT INTO reservaciones
-            (carne, codigo_sala, fecha, hora_inicio, duracion,
-             cantidad_personas, estado, serie_id)
+            (
+                carne,
+                codigo_sala,
+                fecha,
+                hora_inicio,
+                duracion,
+                cantidad_personas,
+                estado,
+                serie_id
+            )
         VALUES (?, ?, ?, ?, ?, ?, 'activa', ?)
         """,
         (
             datos["carne"],
             datos["codigo_sala"],
-            v.fecha_a_texto(datos["fecha"]),
-            v.formatear_hora(datos["hora_inicio"]),
+            v.fecha_a_texto(
+                datos["fecha"]
+            ),
+            v.formatear_hora(
+                datos["hora_inicio"]
+            ),
             datos["duracion"],
             datos["cantidad_personas"],
             serie_id,
         ),
     )
 
-    id_reservacion = cursor.lastrowid
-    registrar_auditoria(conexion, "creación", "reservación", id_reservacion)
+    id_interno = cursor.lastrowid
+
+    id_reservacion = formatear_id_reservacion(
+        id_interno
+    )
+
+    registrar_auditoria(
+        conexion,
+        "creación",
+        "reservación",
+        id_reservacion,
+    )
 
     return id_reservacion
 
@@ -277,37 +377,34 @@ def cancelar_reservacion(id_reservacion):
     """
     RF-09. Cancela una reservación activa mediante su ID.
 
-    Devuelve:
-        (True, mensaje, id_reservacion) si se cancela correctamente.
-        (False, mensaje, None) si el ID es inválido, no existe o ya está cancelada.
+    La aplicación utiliza identificadores con formato R0001,
+    mientras SQLite conserva internamente el número entero.
     """
 
-    # Validar el ID antes de consultar la base de datos.
-    if isinstance(id_reservacion, bool):
-        return False, "El ID de la reservación debe ser un número entero mayor que cero.", None
-
     try:
-        texto_id = str(id_reservacion).strip()
+        id_interno = normalizar_id_reservacion(
+            id_reservacion
+        )
 
-        if not texto_id.isdigit():
-            raise ValueError
+        id_publico = formatear_id_reservacion(
+            id_interno
+        )
 
-        id_reservacion = int(texto_id)
-
-        if id_reservacion <= 0:
-            raise ValueError
-
-    except (ValueError, TypeError):
-        return False, "El ID de la reservación debe ser un número entero mayor que cero.", None
+    except ValueError as error:
+        return (
+            False,
+            str(error),
+            None,
+        )
 
     conexion = None
 
     try:
         conexion = obtener_conexion()
 
-        # La consulta, cancelación y auditoría se realizan
-        # dentro de la misma transacción.
-        conexion.execute("BEGIN IMMEDIATE")
+        conexion.execute(
+            "BEGIN IMMEDIATE"
+        )
 
         try:
             reservacion = conexion.execute(
@@ -316,22 +413,30 @@ def cancelar_reservacion(id_reservacion):
                 FROM reservaciones
                 WHERE id = ?
                 """,
-                (id_reservacion,),
+                (id_interno,),
             ).fetchone()
 
             if reservacion is None:
                 conexion.rollback()
+
                 return (
                     False,
-                    f"No existe una reservación con el ID {id_reservacion}.",
+                    (
+                        "No existe una reservación "
+                        f"con el ID {id_publico}."
+                    ),
                     None,
                 )
 
             if reservacion[1] == "cancelada":
                 conexion.rollback()
+
                 return (
                     False,
-                    f"La reservación con ID {id_reservacion} ya se encuentra cancelada.",
+                    (
+                        f"La reservación con ID {id_publico} "
+                        "ya se encuentra cancelada."
+                    ),
                     None,
                 )
 
@@ -341,14 +446,14 @@ def cancelar_reservacion(id_reservacion):
                 SET estado = 'cancelada'
                 WHERE id = ?
                 """,
-                (id_reservacion,),
+                (id_interno,),
             )
 
             registrar_auditoria(
                 conexion,
                 "cancelación",
                 "reservación",
-                id_reservacion,
+                id_publico,
             )
 
             conexion.commit()
@@ -359,21 +464,26 @@ def cancelar_reservacion(id_reservacion):
 
         return (
             True,
-            f"La reservación con ID {id_reservacion} se canceló correctamente.",
-            id_reservacion,
+            (
+                f"La reservación con ID {id_publico} "
+                "se canceló correctamente."
+            ),
+            id_publico,
         )
 
     except sqlite3.Error:
         return (
             False,
-            "No fue posible cancelar la reservación. Intente de nuevo.",
+            (
+                "No fue posible cancelar la reservación. "
+                "Intente de nuevo."
+            ),
             None,
         )
 
     finally:
         if conexion is not None:
             conexion.close()
-
 
 def modificar_reservacion(
     id_reservacion,
@@ -391,35 +501,21 @@ def modificar_reservacion(
     duración y cantidad de personas.
 
     El ID y el estudiante permanecen sin cambios.
-
-    Devuelve:
-        (True, mensaje, id_reservacion) si se modifica correctamente.
-        (False, mensaje, None) si la modificación no puede realizarse.
     """
 
-    # Validar el ID.
-    if isinstance(id_reservacion, bool):
-        return (
-            False,
-            "El ID de la reservación debe ser un número entero mayor que cero.",
-            None,
+    try:
+        id_interno = normalizar_id_reservacion(
+            id_reservacion
         )
 
-    try:
-        texto_id = str(id_reservacion).strip()
+        id_publico = formatear_id_reservacion(
+            id_interno
+        )
 
-        if not texto_id.isdigit():
-            raise ValueError
-
-        id_reservacion = int(texto_id)
-
-        if id_reservacion <= 0:
-            raise ValueError
-
-    except (ValueError, TypeError):
+    except ValueError as error:
         return (
             False,
-            "El ID de la reservación debe ser un número entero mayor que cero.",
+            str(error),
             None,
         )
 
@@ -427,7 +523,10 @@ def modificar_reservacion(
 
     try:
         conexion = obtener_conexion()
-        conexion.execute("BEGIN IMMEDIATE")
+
+        conexion.execute(
+            "BEGIN IMMEDIATE"
+        )
 
         try:
             reservacion = conexion.execute(
@@ -436,7 +535,7 @@ def modificar_reservacion(
                 FROM reservaciones
                 WHERE id = ?
                 """,
-                (id_reservacion,),
+                (id_interno,),
             ).fetchone()
 
             if reservacion is None:
@@ -444,7 +543,10 @@ def modificar_reservacion(
 
                 return (
                     False,
-                    f"No existe una reservación con el ID {id_reservacion}.",
+                    (
+                        "No existe una reservación "
+                        f"con el ID {id_publico}."
+                    ),
                     None,
                 )
 
@@ -453,15 +555,15 @@ def modificar_reservacion(
 
                 return (
                     False,
-                    f"La reservación con ID {id_reservacion} está cancelada "
-                    "y no puede modificarse.",
+                    (
+                        f"La reservación con ID {id_publico} "
+                        "está cancelada y no puede modificarse."
+                    ),
                     None,
                 )
 
             carne = reservacion[1]
 
-            # Reutilizar todas las reglas de negocio existentes.
-            # excluir_id evita que la reservación choque consigo misma.
             datos = validar_reservacion(
                 conexion,
                 carne,
@@ -471,7 +573,7 @@ def modificar_reservacion(
                 duracion,
                 cantidad_personas,
                 ahora,
-                excluir_id=id_reservacion,
+                excluir_id=id_interno,
             )
 
             conexion.execute(
@@ -486,11 +588,15 @@ def modificar_reservacion(
                 """,
                 (
                     datos["codigo_sala"],
-                    v.fecha_a_texto(datos["fecha"]),
-                    v.formatear_hora(datos["hora_inicio"]),
+                    v.fecha_a_texto(
+                        datos["fecha"]
+                    ),
+                    v.formatear_hora(
+                        datos["hora_inicio"]
+                    ),
                     datos["duracion"],
                     datos["cantidad_personas"],
-                    id_reservacion,
+                    id_interno,
                 ),
             )
 
@@ -498,7 +604,7 @@ def modificar_reservacion(
                 conexion,
                 "modificación",
                 "reservación",
-                id_reservacion,
+                id_publico,
             )
 
             conexion.commit()
@@ -509,17 +615,27 @@ def modificar_reservacion(
 
         return (
             True,
-            f"La reservación con ID {id_reservacion} se modificó correctamente.",
-            id_reservacion,
+            (
+                f"La reservación con ID {id_publico} "
+                "se modificó correctamente."
+            ),
+            id_publico,
         )
 
     except ValueError as error:
-        return False, str(error), None
+        return (
+            False,
+            str(error),
+            None,
+        )
 
     except sqlite3.Error:
         return (
             False,
-            "No fue posible modificar la reservación. Intente de nuevo.",
+            (
+                "No fue posible modificar la reservación. "
+                "Intente de nuevo."
+            ),
             None,
         )
 

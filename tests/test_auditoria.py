@@ -30,8 +30,15 @@ class TestAuditoria(PruebaConBaseTemporal):
         )
 
         self.assertTrue(exito, mensaje)
-        self.assertIsInstance(id_reservacion, int)
+        self.assertIsInstance(
+            id_reservacion,
+            str,
+        )
 
+        self.assertRegex(
+            id_reservacion,
+            r"^R\d{4,}$",
+        )
         return id_reservacion
 
     def test_auditoria_creacion(self):

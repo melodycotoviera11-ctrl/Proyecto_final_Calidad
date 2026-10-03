@@ -19,6 +19,7 @@ from database.conexion import obtener_conexion
 from reservaciones import validaciones as v
 from reservaciones.gestion_reservaciones import (
     insertar_reservacion,
+    normalizar_id_reservacion,
     registrar_auditoria,
 )
 
@@ -224,12 +225,17 @@ def crear_reservacion_recurrente(
 
 def obtener_serie_id(id_reservacion):
     """
-    Obtiene el identificador de la serie recurrente a la que pertenece
-    una reservación.
-
-    Returns:
-        str | None: serie_id de la reservación.
+    Obtiene el identificador de la serie recurrente
+    a la que pertenece una reservación.
     """
+
+    try:
+        id_interno = normalizar_id_reservacion(
+            id_reservacion
+        )
+
+    except ValueError:
+        return None
 
     conexion = obtener_conexion()
 
@@ -240,7 +246,7 @@ def obtener_serie_id(id_reservacion):
             FROM reservaciones
             WHERE id = ?
             """,
-            (id_reservacion,),
+            (id_interno,),
         ).fetchone()
 
         if fila is None:

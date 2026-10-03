@@ -3,7 +3,10 @@
 import unittest
 
 from reservaciones.gestion_reservaciones import (
-    COLUMNAS_RESERVACION, buscar_por_estudiante, consultar_reservaciones,
+    COLUMNAS_RESERVACION,
+    buscar_por_estudiante,
+    consultar_reservaciones,
+    formatear_id_reservacion,
 )
 from tests.utilidades import ACTIVO, ACTIVO_2, INACTIVO, PruebaConBaseTemporal
 
@@ -14,20 +17,64 @@ class TestConsultarReservaciones(PruebaConBaseTemporal):
         self.assertEqual(consultar_reservaciones(), [])
 
     def test_incluye_activas_y_canceladas_con_detalle(self):
-        id_activa = self.insertar_directo(ACTIVO, "S01", "2026-10-06", "10:00", 2, 3)
-        id_cancelada = self.insertar_directo(ACTIVO_2, "S02", "2026-10-06", "14:00",
-                                             1, 1, "cancelada")
+        id_activa = self.insertar_directo(
+            ACTIVO,
+            "S01",
+            "2026-10-06",
+            "10:00",
+            2,
+            3,
+        )
+
+        id_cancelada = self.insertar_directo(
+            ACTIVO_2,
+            "S02",
+            "2026-10-06",
+            "14:00",
+            1,
+            1,
+            "cancelada",
+        )
+
         filas = consultar_reservaciones()
 
-        self.assertEqual(len(filas), 2)
-        self.assertEqual(len(filas[0]), len(COLUMNAS_RESERVACION))
+        self.assertEqual(
+            len(filas),
+            2,
+        )
+
+        self.assertEqual(
+            len(filas[0]),
+            len(COLUMNAS_RESERVACION),
+        )
+
         self.assertEqual(
             filas[0],
-            (id_activa, ACTIVO, "Andrea Solano", "S01", "Sala Biblioteca 1",
-             "2026-10-06", "10:00", "12:00", 3, "activa"),
+            (
+                formatear_id_reservacion(id_activa),
+                ACTIVO,
+                "Andrea Solano",
+                "S01",
+                "Sala Biblioteca 1",
+                "2026-10-06",
+                "10:00",
+                "12:00",
+                3,
+                "activa",
+            ),
         )
-        self.assertEqual(filas[1][0], id_cancelada)
-        self.assertEqual(filas[1][-1], "cancelada")
+
+        self.assertEqual(
+            filas[1][0],
+            formatear_id_reservacion(
+                id_cancelada
+            ),
+        )
+
+        self.assertEqual(
+            filas[1][-1],
+            "cancelada",
+        )
 
     def test_orden_por_fecha_y_hora(self):
         self.insertar_directo(ACTIVO, "S01", "2026-10-08", "09:00")
