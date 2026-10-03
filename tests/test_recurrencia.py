@@ -2,8 +2,15 @@ import unittest
 from datetime import date, timedelta
 
 from reservaciones.gestion_recurrencia import (
+    crear_reservacion_recurrente,
     generar_fechas_semanales,
     validar_cantidad_ocurrencias,
+)
+
+from tests.utilidades import (
+    ACTIVO,
+    AHORA,
+    PruebaConBaseTemporal,
 )
 
 
@@ -72,7 +79,10 @@ class TestGenerarFechasSemanales(unittest.TestCase):
             8
         )
 
-        for anterior, siguiente in zip(fechas, fechas[1:]):
+        for anterior, siguiente in zip(
+            fechas,
+            fechas[1:]
+        ):
             self.assertEqual(
                 siguiente - anterior,
                 timedelta(days=7)
@@ -102,6 +112,145 @@ class TestGenerarFechasSemanales(unittest.TestCase):
                 "2026-10-05",
                 9
             )
+
+
+class TestCrearReservacionRecurrente(
+    PruebaConBaseTemporal
+):
+
+    def test_serie_respeta_maximo_tres_reservaciones_activas(
+        self
+    ):
+        # El estudiante ya tiene dos reservaciones activas.
+        self.insertar_directo(
+            ACTIVO,
+            "S01",
+            "2026-10-06",
+            "10:00",
+        )
+
+        self.insertar_directo(
+            ACTIVO,
+            "S02",
+            "2026-10-07",
+            "10:00",
+        )
+
+        antes = self.sql(
+            """
+            SELECT COUNT(*)
+            FROM reservaciones
+            WHERE carne = ?
+            """,
+            (ACTIVO,),
+        )[0][0]
+
+        # Una serie de dos provocaría un total de cuatro,
+        # superando el máximo permitido de tres.
+        with self.assertRaisesRegex(
+            ValueError,
+            "máximo permitido",
+        ):
+            crear_reservacion_recurrente(
+                ACTIVO,
+                "S03",
+                "2026-10-12",
+                "10:00",
+                1,
+                1,
+                2,
+                ahora=AHORA,
+            )
+
+        despues = self.sql(
+            """
+            SELECT COUNT(*)
+            FROM reservaciones
+            WHERE carne = ?
+            """,
+            (ACTIVO,),
+        )[0][0]
+
+        # Si la serie es rechazada, no debe guardarse
+        # ninguna de sus ocurrencias.
+        self.assertEqual(
+            despues,
+            antes,
+        )
+
+    def test_resume_todos_los_conflictos_de_horario(
+        self
+    ):
+        # Se preparan conflictos para las dos semanas.
+        self.insertar_directo(
+            ACTIVO,
+            "S01",
+            "2026-10-12",
+            "10:00",
+        )
+
+        self.insertar_directo(
+            ACTIVO,
+            "S01",
+            "2026-10-19",
+            "10:00",
+        )
+
+        antes = self.sql(
+            """
+            SELECT COUNT(*)
+            FROM reservaciones
+            """
+        )[0][0]
+
+        with self.assertRaises(
+            ValueError
+        ) as contexto:
+
+            crear_reservacion_recurrente(
+                ACTIVO,
+                "S01",
+                "2026-10-12",
+                "10:00",
+                1,
+                1,
+                2,
+                ahora=AHORA,
+            )
+
+        mensaje = str(
+            contexto.exception
+        )
+
+        # Debe indicar que existe más de un conflicto.
+        self.assertIn(
+            "Se encontraron conflictos",
+            mensaje,
+        )
+
+        # Deben aparecer las dos fechas conflictivas.
+        self.assertIn(
+            "2026-10-12",
+            mensaje,
+        )
+
+        self.assertIn(
+            "2026-10-19",
+            mensaje,
+        )
+
+        despues = self.sql(
+            """
+            SELECT COUNT(*)
+            FROM reservaciones
+            """
+        )[0][0]
+
+        # Si hay conflictos, la serie completa se rechaza.
+        self.assertEqual(
+            despues,
+            antes,
+        )
 
 
 if __name__ == "__main__":
