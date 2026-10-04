@@ -8,7 +8,9 @@ La aplicación permite administrar estudiantes, salas y reservaciones de salas d
 
 ## Requerimientos de ejecución
 
-- Python 3.10 o superior.
+- Sistema operativo de referencia: Windows 11
+- Versión utilizada para las pruebas: Python 3.14.7
+- Versión mínima soportada: Python 3.10
 - Tkinter.
 - SQLite mediante el módulo estándar `sqlite3`.
 
