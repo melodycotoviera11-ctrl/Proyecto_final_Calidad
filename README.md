@@ -22,7 +22,6 @@ En algunas distribuciones de Linux puede ser necesario instalar Tkinter por sepa
 
 Desde la raíz del proyecto ejecutar:
 
-```bash
 python main.py
 
 Al iniciar, el sistema abre la base de datos ubicada en:
@@ -30,7 +29,7 @@ database/reservaciones.db
 
 Si la base de datos no existe, el sistema la crea automáticamente junto con su estructura y los datos iniciales.
 
-Datos iniciales
+## Datos iniciales
 Estudiantes
 - A001234567 - Andrea Solano - activo
 - B009876543 - Carlos Méndez - activo
@@ -42,7 +41,7 @@ Salas
 - S04 - Sala multimedia - capacidad 8 - fuera de servicio
 - S05 - Cubículo individual - capacidad 1 - disponible
 
-Funcionalidades principales
+## Funcionalidades principales
 La aplicación incluye:
 - Panel principal con reservaciones del día, próximas reservaciones y ocupación de salas.
 - Registro, consulta y modificación de estudiantes.
@@ -64,7 +63,7 @@ R0003
 ...
 Los identificadores se generan automáticamente y no se reutilizan.
 
-Navegación
+## Navegación
 La aplicación utiliza un único menú lateral.
 Las opciones disponibles son:
 
@@ -90,7 +89,7 @@ Salir
 El botón Salir y el cierre mediante la X de la ventana utilizan el mismo procedimiento de salida controlada.
 Si existen cambios pendientes, el sistema solicita confirmación e intenta guardarlos antes de cerrar.
 
-Estructura del proyecto
+## Estructura del proyecto
 Proyecto_final_Calidad/
 │
 ├── database/
@@ -132,7 +131,7 @@ Proyecto_final_Calidad/
 La aplicación mantiene separadas las responsabilidades de interfaz, lógica de negocio, validaciones y persistencia.
 Los módulos de interfaz no ejecutan sentencias SQL directamente.
 
-Persistencia
+## Persistencia
 La información se almacena localmente mediante SQLite.
 Las principales entidades almacenadas son:
 - estudiantes;
@@ -141,7 +140,7 @@ Las principales entidades almacenadas son:
 - auditoría.
 Las operaciones de escritura utilizan transacciones para evitar información parcial cuando una validación u operación falla.
 
-Restaurar los datos iniciales
+## Restaurar los datos iniciales
 Para restaurar la aplicación a su estado inicial:
 1. Cerrar completamente la aplicación.
 2. Eliminar el archivo:
@@ -151,7 +150,7 @@ database/reservaciones.db
 python main.py
 El sistema crea automáticamente una nueva base de datos con los estudiantes y salas iniciales.
 
-Reportes
+## Reportes
 Los reportes de reservaciones pueden generarse desde la opción Reportes.
 La persona usuaria selecciona:
 - fecha inicial;
@@ -159,7 +158,7 @@ La persona usuaria selecciona:
 - ubicación del archivo.
 El reporte se genera en formato CSV con codificación UTF-8.
 
-Pruebas automatizadas
+## Pruebas automatizadas
 Las pruebas se ejecutan desde la raíz del proyecto con:
 python -m unittest discover -s tests -t . -v
 
@@ -183,7 +182,7 @@ La suite incluye pruebas sobre:
 - arquitectura;
 - rendimiento.
 
-Consideraciones de portabilidad
+## Consideraciones de portabilidad
 El proyecto utiliza rutas relativas, por lo que puede ejecutarse desde otra computadora sin modificar rutas del código fuente.
 Para ejecutar la aplicación en otro equipo:
 1. Copiar o clonar el repositorio.
