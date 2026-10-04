@@ -6,6 +6,7 @@ from reservaciones.disponibilidad import consultar_disponibilidad
 from reservaciones.gestion_reservaciones import (
     cancelar_reservacion,
     consultar_reservaciones,
+    formatear_id_reservacion,
 )
 from tests.utilidades import (
     ACTIVO,
@@ -30,7 +31,12 @@ class TestCancelarReservacion(PruebaConBaseTemporal):
         exito, mensaje, id_cancelado = cancelar_reservacion(id_reservacion)
 
         self.assertTrue(exito)
-        self.assertEqual(id_cancelado, id_reservacion)
+        self.assertEqual(
+            id_cancelado,
+            formatear_id_reservacion(
+                id_reservacion
+            ),
+        )
         self.assertIn("canceló correctamente", mensaje)
 
         estado = self.sql(
@@ -77,7 +83,9 @@ class TestCancelarReservacion(PruebaConBaseTemporal):
         fila = next(
             reservacion
             for reservacion in reservaciones
-            if reservacion[0] == id_reservacion
+            if reservacion[0] == formatear_id_reservacion(
+                id_reservacion
+            )
         )
 
         self.assertEqual(fila[-1], "cancelada")
@@ -112,7 +120,13 @@ class TestCancelarReservacion(PruebaConBaseTemporal):
             "10:00",
         )
 
-        cancelar_reservacion(id_reservacion)
+        id_publico = formatear_id_reservacion(
+            id_reservacion
+        )
+
+        cancelar_reservacion(
+            id_reservacion
+        )
 
         auditoria = self.sql(
             """
@@ -120,12 +134,18 @@ class TestCancelarReservacion(PruebaConBaseTemporal):
             FROM auditoria
             WHERE identificador = ?
             """,
-            (str(id_reservacion),),
+            (id_publico,),
         )
 
         self.assertEqual(
             auditoria,
-            [("cancelación", "reservación", str(id_reservacion))],
+            [
+                (
+                    "cancelación",
+                    "reservación",
+                    id_publico,
+                )
+            ],
         )
 
     def test_id_invalido(self):

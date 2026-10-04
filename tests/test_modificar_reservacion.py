@@ -2,7 +2,10 @@
 
 import unittest
 
-from reservaciones.gestion_reservaciones import modificar_reservacion
+from reservaciones.gestion_reservaciones import (
+    formatear_id_reservacion,
+    modificar_reservacion,
+)
 from tests.utilidades import (
     ACTIVO,
     ACTIVO_2,
@@ -36,7 +39,12 @@ class TestModificarReservacion(PruebaConBaseTemporal):
         )
 
         self.assertTrue(exito)
-        self.assertEqual(id_modificado, id_reservacion)
+        self.assertEqual(
+            id_modificado,
+            formatear_id_reservacion(
+                id_reservacion
+            ),
+        )        
         self.assertIn("modificó correctamente", mensaje)
 
         reservacion = self.sql(
@@ -286,6 +294,10 @@ class TestModificarReservacion(PruebaConBaseTemporal):
             "10:00",
         )
 
+        id_publico = formatear_id_reservacion(
+            id_reservacion
+        )
+
         modificar_reservacion(
             id_reservacion,
             "S02",
@@ -302,7 +314,7 @@ class TestModificarReservacion(PruebaConBaseTemporal):
             FROM auditoria
             WHERE identificador = ?
             """,
-            (str(id_reservacion),),
+            (id_publico,),
         )
 
         self.assertEqual(
@@ -311,7 +323,7 @@ class TestModificarReservacion(PruebaConBaseTemporal):
                 (
                     "modificación",
                     "reservación",
-                    str(id_reservacion),
+                    id_publico,
                 )
             ],
         )
@@ -349,8 +361,12 @@ class TestModificarReservacion(PruebaConBaseTemporal):
         )
 
         self.assertTrue(exito, mensaje)
-        self.assertEqual(id_modificado, id_reservacion)
-
+        self.assertEqual(
+            id_modificado,
+            formatear_id_reservacion(
+                id_reservacion
+            ),
+        )
 
 if __name__ == "__main__":
     unittest.main()
