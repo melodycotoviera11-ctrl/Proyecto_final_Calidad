@@ -8,8 +8,14 @@ from reservaciones.reportes import (
     generar_reporte_csv,
 )
 
+from tests.utilidades import (
+    PruebaConBaseTemporal,
+)
 
-class TestConsultarReservacionesPorFecha(unittest.TestCase):
+
+class TestConsultarReservacionesPorFecha(
+    PruebaConBaseTemporal
+):
 
     def test_fecha_inicial_invalida(self):
         exito, mensaje, filas = consultar_reservaciones_por_fecha(
@@ -18,8 +24,14 @@ class TestConsultarReservacionesPorFecha(unittest.TestCase):
         )
 
         self.assertFalse(exito)
-        self.assertIn("no existe", mensaje.lower())
-        self.assertEqual(filas, [])
+        self.assertIn(
+            "no existe",
+            mensaje.lower(),
+        )
+        self.assertEqual(
+            filas,
+            [],
+        )
 
     def test_fecha_final_invalida(self):
         exito, mensaje, filas = consultar_reservaciones_por_fecha(
@@ -28,7 +40,10 @@ class TestConsultarReservacionesPorFecha(unittest.TestCase):
         )
 
         self.assertFalse(exito)
-        self.assertEqual(filas, [])
+        self.assertEqual(
+            filas,
+            [],
+        )
 
     def test_fecha_final_anterior(self):
         exito, mensaje, filas = consultar_reservaciones_por_fecha(
@@ -37,11 +52,16 @@ class TestConsultarReservacionesPorFecha(unittest.TestCase):
         )
 
         self.assertFalse(exito)
+
         self.assertIn(
             "fecha final no puede ser anterior",
             mensaje.lower(),
         )
-        self.assertEqual(filas, [])
+
+        self.assertEqual(
+            filas,
+            [],
+        )
 
     def test_rango_valido(self):
         exito, mensaje, filas = consultar_reservaciones_por_fecha(
@@ -50,10 +70,16 @@ class TestConsultarReservacionesPorFecha(unittest.TestCase):
         )
 
         self.assertTrue(exito)
-        self.assertIsInstance(filas, list)
+
+        self.assertIsInstance(
+            filas,
+            list,
+        )
 
 
-class TestGenerarReporteCSV(unittest.TestCase):
+class TestGenerarReporteCSV(
+    PruebaConBaseTemporal
+):
 
     def test_no_genera_si_no_hay_ruta(self):
         exito, mensaje = generar_reporte_csv(
@@ -63,11 +89,19 @@ class TestGenerarReporteCSV(unittest.TestCase):
         )
 
         self.assertFalse(exito)
-        self.assertIn("destino", mensaje.lower())
+
+        self.assertIn(
+            "destino",
+            mensaje.lower(),
+        )
 
     def test_no_genera_si_rango_invalido(self):
         with tempfile.TemporaryDirectory() as carpeta:
-            ruta = Path(carpeta) / "reporte.csv"
+
+            ruta = (
+                Path(carpeta)
+                / "reporte.csv"
+            )
 
             exito, mensaje = generar_reporte_csv(
                 "2026-10-31",
@@ -76,11 +110,18 @@ class TestGenerarReporteCSV(unittest.TestCase):
             )
 
             self.assertFalse(exito)
-            self.assertFalse(ruta.exists())
+
+            self.assertFalse(
+                ruta.exists()
+            )
 
     def test_genera_csv_con_encabezados(self):
         with tempfile.TemporaryDirectory() as carpeta:
-            ruta = Path(carpeta) / "reporte.csv"
+
+            ruta = (
+                Path(carpeta)
+                / "reporte.csv"
+            )
 
             exito, mensaje = generar_reporte_csv(
                 "2026-10-01",
@@ -88,16 +129,28 @@ class TestGenerarReporteCSV(unittest.TestCase):
                 ruta,
             )
 
-            self.assertTrue(exito)
-            self.assertTrue(ruta.exists())
+            self.assertTrue(
+                exito,
+                mensaje,
+            )
+
+            self.assertTrue(
+                ruta.exists()
+            )
 
             with ruta.open(
                 "r",
                 encoding="utf-8-sig",
                 newline="",
             ) as archivo:
-                lector = csv.reader(archivo)
-                encabezados = next(lector)
+
+                lector = csv.reader(
+                    archivo
+                )
+
+                encabezados = next(
+                    lector
+                )
 
             self.assertEqual(
                 encabezados,
@@ -113,6 +166,145 @@ class TestGenerarReporteCSV(unittest.TestCase):
                     "Cantidad de personas",
                     "Estado",
                 ],
+            )
+
+    def test_csv_conserva_tildes_y_enie(self):
+        """
+        RNF-08:
+        verifica que los datos exportados con tildes
+        y la letra ñ se conserven correctamente.
+        """
+
+        self.sql(
+            """
+            INSERT INTO estudiantes
+                (
+                    carne,
+                    nombre_completo,
+                    correo,
+                    estado
+                )
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                "N000000001",
+                "Íñigo Muñoz",
+                "inigo@universidad.ac.cr",
+                "activo",
+            ),
+        )
+
+        self.sql(
+            """
+            INSERT INTO salas
+                (
+                    codigo,
+                    nombre,
+                    capacidad,
+                    estado
+                )
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                "S06",
+                "Sala Pequeña Ñandú",
+                6,
+                "disponible",
+            ),
+        )
+
+        self.insertar_directo(
+            "N000000001",
+            "S06",
+            "2026-10-10",
+            "10:00",
+            1,
+            2,
+        )
+
+        with tempfile.TemporaryDirectory() as carpeta:
+
+            ruta = (
+                Path(carpeta)
+                / "reporte_codificacion.csv"
+            )
+
+            exito, mensaje = generar_reporte_csv(
+                "2026-10-10",
+                "2026-10-10",
+                ruta,
+            )
+
+            self.assertTrue(
+                exito,
+                mensaje,
+            )
+
+            self.assertTrue(
+                ruta.exists()
+            )
+
+            with ruta.open(
+                "r",
+                encoding="utf-8-sig",
+                newline="",
+            ) as archivo:
+
+                lector = list(
+                    csv.reader(
+                        archivo
+                    )
+                )
+
+            self.assertEqual(
+                lector[0][1],
+                "Carné",
+            )
+
+            self.assertEqual(
+                lector[0][3],
+                "Código de sala",
+            )
+
+            self.assertEqual(
+                len(lector),
+                2,
+            )
+
+            fila = lector[1]
+
+            self.assertEqual(
+                fila[2],
+                "Íñigo Muñoz",
+            )
+
+            self.assertEqual(
+                fila[4],
+                "Sala Pequeña Ñandú",
+            )
+
+            contenido = ruta.read_text(
+                encoding="utf-8-sig"
+            )
+
+            self.assertIn(
+                "Íñigo Muñoz",
+                contenido,
+            )
+
+            self.assertIn(
+                "Sala Pequeña Ñandú",
+                contenido,
+            )
+
+            self.assertIn(
+                "Carné",
+                contenido,
+            )
+
+            self.assertIn(
+                "Código de sala",
+                contenido,
             )
 
 

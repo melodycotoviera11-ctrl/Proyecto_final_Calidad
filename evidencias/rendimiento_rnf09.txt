@@ -12,27 +12,27 @@ Reservaciones: 5000
 
 Resultados
 Consulta general de reservaciones:
-  Ejecución 1: 0.027194 segundos
-  Ejecución 2: 0.029543 segundos
-  Ejecución 3: 0.033656 segundos
-  Tiempo máximo: 0.033656 segundos
+  Ejecución 1: 0.016564 segundos
+  Ejecución 2: 0.019044 segundos
+  Ejecución 3: 0.016345 segundos
+  Tiempo máximo: 0.019044 segundos
 
 Búsqueda por carné:
-  Ejecución 1: 0.001256 segundos
-  Ejecución 2: 0.001005 segundos
-  Ejecución 3: 0.000918 segundos
-  Tiempo máximo: 0.001256 segundos
+  Ejecución 1: 0.001109 segundos
+  Ejecución 2: 0.000959 segundos
+  Ejecución 3: 0.000741 segundos
+  Tiempo máximo: 0.001109 segundos
 
 Consulta de disponibilidad:
-  Ejecución 1: 0.005667 segundos
-  Ejecución 2: 0.001534 segundos
-  Ejecución 3: 0.003461 segundos
-  Tiempo máximo: 0.005667 segundos
+  Ejecución 1: 0.003794 segundos
+  Ejecución 2: 0.000746 segundos
+  Ejecución 3: 0.000706 segundos
+  Tiempo máximo: 0.003794 segundos
 
 Carga del panel principal:
-  Ejecución 1: 0.024723 segundos
-  Ejecución 2: 0.020360 segundos
-  Ejecución 3: 0.019436 segundos
-  Tiempo máximo: 0.024723 segundos
+  Ejecución 1: 0.016183 segundos
+  Ejecución 2: 0.016872 segundos
+  Ejecución 3: 0.016340 segundos
+  Tiempo máximo: 0.016872 segundos
 
 Criterio: cada ejecución debe responder en menos de 2 segundos.
