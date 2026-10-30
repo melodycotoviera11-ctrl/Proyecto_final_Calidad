@@ -6,7 +6,16 @@ y controla RF-10: Salir.
 """
 
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import ttk
+
+from interfaz.logica_salida import (
+    CANCELAR,
+    GUARDAR_Y_SALIR,
+    SALIR_SIN_GUARDAR,
+    guardar_vistas,
+    resolver_salida,
+    vistas_con_cambios,
+)
 
 from interfaz.vistas_estudiantes import VistaEstudiantes
 from interfaz.vistas_salas import VistaSalas
@@ -462,9 +471,9 @@ class VentanaPrincipal:
     # RF-10. Cambios pendientes
     # ------------------------------------------------------------------
 
-    def hay_cambios_pendientes(self):
+    def _vistas_editables(self):
 
-        vistas_editables = (
+        return (
             self.vista_estudiantes,
             self.vista_salas,
             self.vista_crear_reservacion,
@@ -472,102 +481,183 @@ class VentanaPrincipal:
             self.vista_recurrencia,
         )
 
-        for vista in vistas_editables:
+    def hay_cambios_pendientes(self):
 
-            verificar = getattr(
-                vista,
-                "hay_cambios_pendientes",
-                None,
+        return bool(
+            vistas_con_cambios(
+                self._vistas_editables()
             )
-
-            if (
-                callable(verificar)
-                and verificar()
-            ):
-                return True
-
-        return False
+        )
 
     def guardar_cambios_pendientes(self):
 
-        vistas_editables = (
-            self.vista_estudiantes,
-            self.vista_salas,
-            self.vista_crear_reservacion,
-            self.vista_gestion_reservaciones,
-            self.vista_recurrencia,
+        return guardar_vistas(
+            vistas_con_cambios(
+                self._vistas_editables()
+            )
         )
 
-        for vista in vistas_editables:
-
-            guardar = getattr(
-                vista,
-                "guardar_pendientes",
-                None,
-            )
-
-            if not callable(guardar):
-                continue
-
-            exito, mensaje = guardar()
-
-            if not exito:
-                return False, mensaje
-
-        return True, ""
-
     # ------------------------------------------------------------------
-    # RF-10. Salir
+    # RF-10. Salir (corrección H-05)
     # ------------------------------------------------------------------
+
+    def _preguntar_opcion_salida(self):
+
+        return DialogoSalida(
+            self.raiz,
+            titulo="Cambios pendientes",
+            mensaje=(
+                "Hay cambios pendientes de guardar.\n\n"
+                "¿Qué desea hacer antes de salir?"
+            ),
+            opciones=(
+                ("Guardar y salir", GUARDAR_Y_SALIR),
+                ("Salir sin guardar", SALIR_SIN_GUARDAR),
+                ("Cancelar", CANCELAR),
+            ),
+        ).mostrar()
+
+    def _preguntar_tras_error(self, mensaje):
+
+        return DialogoSalida(
+            self.raiz,
+            titulo="No se pudieron guardar los cambios",
+            mensaje=(
+                "No fue posible guardar todos los cambios "
+                "pendientes.\n\n"
+                f"{mensaje}\n\n"
+                "Puede salir sin guardar o cancelar para "
+                "volver a la aplicación y corregir la información."
+            ),
+            opciones=(
+                ("Salir sin guardar", SALIR_SIN_GUARDAR),
+                ("Cancelar", CANCELAR),
+            ),
+        ).mostrar()
 
     def salir(self):
         """
         Si no existen cambios pendientes, cierra inmediatamente.
 
-        Si existen cambios pendientes, solicita confirmación.
+        Si existen cambios pendientes, ofrece tres opciones:
+        Guardar y salir, Salir sin guardar o Cancelar.
 
-        El botón Salir del menú lateral y la X de Windows
+        El botón Salir del menú lateral y la X de la ventana
         utilizan exactamente esta misma función.
         """
 
-        if not self.hay_cambios_pendientes():
+        cerrar = resolver_salida(
+            self._vistas_editables(),
+            self._preguntar_opcion_salida,
+            self._preguntar_tras_error,
+        )
 
+        if cerrar:
             self.raiz.destroy()
-            return
 
-        confirmar = messagebox.askyesno(
-            "Cambios pendientes",
-            (
-                "Hay cambios pendientes de guardar.\n\n"
-                "¿Desea guardarlos y salir?"
-            ),
-            parent=self.raiz,
+
+class DialogoSalida:
+    """
+    Cuadro modal con botones de texto propio.
+
+    Se usa en lugar de messagebox.askyesno porque este solo permite
+    las respuestas Sí y No. Cerrar el cuadro con la X equivale a
+    Cancelar.
+    """
+
+    def __init__(self, padre, titulo, mensaje, opciones):
+
+        self.padre = padre
+        self.titulo = titulo
+        self.mensaje = mensaje
+        self.opciones = opciones
+        self.resultado = CANCELAR
+
+    def mostrar(self):
+
+        ventana = tk.Toplevel(
+            self.padre
         )
 
-        if not confirmar:
-            return
-
-        exito, mensaje = (
-            self.guardar_cambios_pendientes()
+        ventana.title(
+            self.titulo
         )
 
-        if not exito:
+        ventana.resizable(
+            False,
+            False,
+        )
 
-            messagebox.showerror(
-                "No se puede cerrar",
-                (
-                    "No fue posible guardar todos los "
-                    "cambios pendientes.\n\n"
-                    f"{mensaje}\n\n"
-                    "La aplicación permanecerá abierta "
-                    "para que pueda corregir la información."
+        ventana.transient(
+            self.padre
+        )
+
+        ventana.protocol(
+            "WM_DELETE_WINDOW",
+            ventana.destroy,
+        )
+
+        marco = ttk.Frame(
+            ventana,
+            padding=20,
+        )
+
+        marco.pack(
+            fill="both",
+            expand=True,
+        )
+
+        ttk.Label(
+            marco,
+            text=self.mensaje,
+            justify="left",
+            wraplength=420,
+        ).pack(
+            anchor="w",
+            pady=(0, 16),
+        )
+
+        botones = ttk.Frame(
+            marco
+        )
+
+        botones.pack(
+            anchor="e"
+        )
+
+        for texto, valor in self.opciones:
+
+            ttk.Button(
+                botones,
+                text=texto,
+                command=lambda v=valor: self._elegir(
+                    ventana,
+                    v,
                 ),
-                parent=self.raiz,
+            ).pack(
+                side="left",
+                padx=(6, 0),
             )
 
-            return
+        ventana.bind(
+            "<Escape>",
+            lambda _evento: ventana.destroy(),
+        )
 
-        self.raiz.destroy()
+        ventana.wait_visibility()
+        ventana.grab_set()
+        ventana.focus_set()
+
+        self.padre.wait_window(
+            ventana
+        )
+
+        return self.resultado
+
+    def _elegir(self, ventana, valor):
+
+        self.resultado = valor
+        ventana.destroy()
 
 
 def iniciar_interfaz():
