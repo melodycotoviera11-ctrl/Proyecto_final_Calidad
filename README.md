@@ -6,6 +6,24 @@ La aplicación permite administrar estudiantes, salas y reservaciones de salas d
 
 ---
 
+## Versión
+
+La versión entregada se identifica con una etiqueta de Git y con el archivo `VERSION` de la raíz del proyecto.
+
+| Etiqueta | Descripción |
+|---|---|
+| `version-candidata` | Versión de la Fase 2 evaluada por el Grupo 07 (commit `25adab2`). |
+| `version-corregida` | Versión de la Fase 6 con las correcciones de los hallazgos. |
+
+Para ver el commit exacto de una versión:
+
+```
+git fetch --tags
+git rev-list -n 1 version-corregida
+```
+
+---
+
 ## Requerimientos de ejecución
 
 - Sistema operativo de referencia: Windows 11
@@ -57,7 +75,7 @@ La aplicación incluye:
 - Cancelación individual y de ocurrencias futuras de una serie.
 - Generación de reportes en formato CSV.
 - Consulta del historial de auditoría.
-- Salida controlada con verificación de cambios pendientes.
+- Salida controlada con verificación de cambios pendientes (Guardar y salir, Salir sin guardar o Cancelar).
 Los identificadores de reservación utilizan el formato:
 R0001
 R0002
@@ -89,7 +107,15 @@ Otros
 
 Salir
 El botón Salir y el cierre mediante la X de la ventana utilizan el mismo procedimiento de salida controlada.
-Si existen cambios pendientes, el sistema solicita confirmación e intenta guardarlos antes de cerrar.
+
+Se consideran cambios pendientes los datos escritos en un formulario de registro o modificación que todavía no se han guardado.
+
+- Si no hay cambios pendientes, la aplicación se cierra sin preguntar.
+- Si hay cambios pendientes, se muestran tres opciones:
+  - **Guardar y salir**: intenta guardar los cambios y luego cierra.
+  - **Salir sin guardar**: descarta los cambios y cierra.
+  - **Cancelar**: vuelve a la aplicación sin perder lo escrito.
+- Si al guardar algún dato no es válido, se muestra el motivo y se puede elegir **Salir sin guardar** o **Cancelar** para corregirlo.
 
 ## Estructura del proyecto
 Proyecto_final_Calidad/
@@ -114,6 +140,7 @@ Proyecto_final_Calidad/
 │   └── validaciones.py
 │
 ├── interfaz/
+│   ├── logica_salida.py
 │   ├── ventana_principal.py
 │   ├── vistas_auditoria.py
 │   ├── vistas_estudiantes.py
@@ -124,10 +151,14 @@ Proyecto_final_Calidad/
 │   ├── vistas_reservaciones.py
 │   └── vistas_salas.py
 │
+├── evidencias/
+│   └── rendimiento_rnf09.txt
+│
 ├── tests/
 │   └── pruebas automatizadas del sistema
 │
 ├── main.py
+├── VERSION
 └── README.md
 
 La aplicación mantiene separadas las responsabilidades de interfaz, lógica de negocio, validaciones y persistencia.
@@ -179,6 +210,7 @@ La suite incluye pruebas sobre:
 - reservaciones recurrentes;
 - reportes;
 - auditoría;
+- salida de la aplicación;
 - persistencia;
 - integridad;
 - arquitectura;

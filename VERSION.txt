@@ -1,0 +1,14 @@
+Versión: version-corregida
+Fase: Fase 6. Corrección y verificación
+Equipo desarrollador: Grupo 4
+Repositorio: https://github.com/melodycotoviera11-ctrl/Proyecto_final_Calidad
+
+Versión de partida: version-candidata
+Commit de partida: 25adab21f26a3488ec0f0eebac9ce5257fed73f5 (rama main)
+Corresponde al archivo Fase_2_-_Grupo_4.zip evaluado por el Grupo 07 en la Fase 3
+SHA-256 del ZIP evaluado: 77fdb87ef54c20a1fc735b781c842d84f7bc2a681a6c83a350788d662fede22c
+
+Cómo identificar la versión exacta:
+  git fetch --tags
+  git rev-list -n 1 version-corregida
+El commit que muestra este comando es la versión entregada en la Fase 6.

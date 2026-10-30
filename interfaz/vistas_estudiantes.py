@@ -17,6 +17,23 @@ from estudiantes.gestion_estudiantes import (
 )
 
 
+MENSAJE_SIN_ESTUDIANTES = "No hay estudiantes registrados."
+
+
+def mensaje_consulta_estudiantes(cantidad):
+    """
+    RF-03. Texto que acompaña la tabla de estudiantes.
+
+    Devuelve el mensaje informativo cuando no hay estudiantes y un
+    texto vacío cuando la tabla tiene registros.
+    """
+
+    if cantidad == 0:
+        return MENSAJE_SIN_ESTUDIANTES
+
+    return ""
+
+
 class VistaEstudiantes(ttk.Frame):
 
     def __init__(self, padre, on_volver=None):
@@ -134,6 +151,19 @@ class VistaEstudiantes(ttk.Frame):
 
         self.tabla.grid(row=0, column=0, sticky="nsew")
         barra.grid(row=0, column=1, sticky="ns")
+
+        # RF-03 (corrección H-08): mensaje informativo cuando la
+        # consulta no devuelve estudiantes.
+        self.var_mensaje_consulta = tk.StringVar()
+
+        self.etiqueta_mensaje = ttk.Label(
+            marco,
+            textvariable=self.var_mensaje_consulta,
+            foreground="#6b7280",
+        )
+        self.etiqueta_mensaje.grid(
+            row=1, column=0, columnspan=2, sticky="w", pady=(8, 0)
+        )
 
         marco.rowconfigure(0, weight=1)
         marco.columnconfigure(0, weight=1)
@@ -286,6 +316,10 @@ class VistaEstudiantes(ttk.Frame):
                         estado.capitalize(),
                     ),
                 )
+
+            self.var_mensaje_consulta.set(
+                mensaje_consulta_estudiantes(len(estudiantes))
+            )
 
         except RuntimeError as error:
             messagebox.showerror(
