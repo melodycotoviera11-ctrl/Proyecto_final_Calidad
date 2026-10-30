@@ -1,4 +1,4 @@
-
+from datetime import datetime
 import sqlite3
 
 from database.conexion import obtener_conexion
@@ -163,6 +163,31 @@ def modificar_estudiante(carne, nombre, correo, estado):
                 f"El carné {carne} no corresponde a ningún estudiante registrado.",
             )
 
+        
+        cantidad_futuras = 0
+
+        if estado == "inactivo":
+            ahora = datetime.now()
+
+            cantidad_futuras = conexion.execute(
+                """
+                SELECT COUNT(*)
+                FROM reservaciones
+                WHERE carne = ?
+                  AND estado = 'activa'
+                  AND (
+                      fecha > ?
+                      OR (fecha = ? AND hora_inicio > ?)
+                  )
+                """,
+                (
+                    estudiante[0],
+                    ahora.date().isoformat(),
+                    ahora.date().isoformat(),
+                    ahora.strftime("%H:%M"),
+                ),
+            ).fetchone()[0]
+
         with conexion:
             conexion.execute(
                 """
@@ -172,15 +197,18 @@ def modificar_estudiante(carne, nombre, correo, estado):
                     estado = ?
                 WHERE carne = ?
                 """,
-                (
-                    nombre,
-                    correo,
-                    estado,
-                    estudiante[0],
-                ),
+                (nombre, correo, estado, estudiante[0]),
             )
 
-        return True, "La información del estudiante se modificó correctamente."
+        mensaje = "La información del estudiante se modificó correctamente."
+
+        if estado == "inactivo" and cantidad_futuras > 0:
+            mensaje += (
+                f" Advertencia: el estudiante tiene {cantidad_futuras} "
+                "reservación(es) activa(s) futura(s) que permanecerán registradas."
+            )
+
+        return True, mensaje
 
     except sqlite3.Error:
         return False, "No fue posible modificar la información del estudiante."
