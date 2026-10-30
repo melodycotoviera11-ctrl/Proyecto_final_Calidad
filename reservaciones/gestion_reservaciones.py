@@ -623,9 +623,17 @@ def modificar_reservacion(
         )
 
     except ValueError as error:
+        mensaje = str(error)
+
+        if "no puede crear reservaciones" in mensaje:
+            mensaje = mensaje.replace(
+                "no puede crear reservaciones",
+                "no puede modificar reservaciones",
+            )
+
         return (
             False,
-            str(error),
+            mensaje,
             None,
         )
 

@@ -79,3 +79,56 @@ def consultar_disponibilidad(codigo_sala, fecha, hora_inicio, duracion, ahora=No
     finally:
         if conexion is not None:
             conexion.close()
+
+
+def consultar_franjas_disponibilidad(codigo_sala, fecha, ahora=None):
+    """
+    H-11. Consulta visual de disponibilidad por franjas de una hora.
+
+    Devuelve:
+        (True, mensaje, franjas) si la consulta es válida.
+        (False, mensaje, []) si los datos no son válidos.
+
+    No crea ni modifica reservaciones.
+    """
+    if ahora is None:
+        ahora = datetime.now()
+
+    franjas = []
+
+    for hora in range(8, 20):
+        inicio = f"{hora:02d}:00"
+        fin = f"{hora + 1:02d}:00"
+
+        exito, mensaje, disponible = consultar_disponibilidad(
+            codigo_sala,
+            fecha,
+            inicio,
+            1,
+            ahora=ahora,
+        )
+
+        if not exito:
+            # Para fechas actuales, las franjas ya transcurridas
+            # se indican como pasadas sin interrumpir la consulta.
+            if (
+                fecha == ahora.date().isoformat()
+                and hora <= ahora.hour
+                and (
+                    "pasado" in mensaje.lower()
+                    or "posterior" in mensaje.lower()
+                )
+            ):
+                franjas.append((inicio, fin, "Pasada"))
+                continue
+
+            return False, mensaje, []
+
+        estado = "Disponible" if disponible else "Ocupada"
+
+        if not disponible and "fuera de servicio" in mensaje.lower():
+            estado = "Fuera de servicio"
+
+        franjas.append((inicio, fin, estado))
+
+    return True, "Consulta de franjas completada.", franjas

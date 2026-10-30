@@ -117,6 +117,121 @@ class TestGenerarFechasSemanales(unittest.TestCase):
 class TestCrearReservacionRecurrente(
     PruebaConBaseTemporal
 ):
+    def test_h04_permite_serie_de_tres_sin_reservaciones_previas(self):
+        resultado = crear_reservacion_recurrente(
+            ACTIVO,
+            "S01",
+            "2026-10-12",
+            "10:00",
+            1,
+            1,
+            3,
+            ahora=AHORA,
+        )
+
+        self.assertEqual(len(resultado["ids"]), 3)
+        self.assertTrue(resultado["serie_id"])
+
+        filas = self.sql(
+            """
+            SELECT fecha, estado, serie_id
+            FROM reservaciones
+            WHERE carne = ?
+            ORDER BY fecha
+            """,
+            (ACTIVO,),
+        )
+
+        self.assertEqual(len(filas), 3)
+        self.assertEqual(
+            [fila[0] for fila in filas],
+            ["2026-10-12", "2026-10-19", "2026-10-26"],
+        )
+        self.assertTrue(
+            all(
+                fila[1] == "activa"
+                and fila[2] == resultado["serie_id"]
+                for fila in filas
+            )
+    )
+
+    def test_h04_rechaza_serie_de_cuatro_sin_reservaciones_previas(self):
+        antes = self.sql(
+            """
+            SELECT COUNT(*)
+            FROM reservaciones
+            WHERE carne = ?
+            """,
+            (ACTIVO,),
+        )[0][0]
+
+        with self.assertRaisesRegex(ValueError, "máximo permitido"):
+            crear_reservacion_recurrente(
+                ACTIVO,
+                "S01",
+                "2026-10-12",
+                "10:00",
+                1,
+                1,
+                4,
+                ahora=AHORA,
+            )
+
+        despues = self.sql(
+            """
+            SELECT COUNT(*)
+            FROM reservaciones
+            WHERE carne = ?
+            """,
+            (ACTIVO,),
+        )[0][0]
+
+        self.assertEqual(antes, despues)
+
+    def test_h04_rechaza_serie_de_tres_con_una_reservacion_previa(self):
+        # El estudiante ya tiene una reservación activa.
+        self.insertar_directo(
+            ACTIVO,
+            "S02",
+            "2026-10-06",
+            "10:00",
+        )
+
+        antes = self.sql(
+            """
+            SELECT COUNT(*)
+            FROM reservaciones
+            WHERE carne = ?
+            """,
+            (ACTIVO,),
+        )[0][0]
+
+        # Una serie de 3 elevaría el total a 4.
+        with self.assertRaisesRegex(ValueError, "máximo permitido"):
+            crear_reservacion_recurrente(
+                ACTIVO,
+                "S01",
+                "2026-10-12",
+                "10:00",
+                1,
+                1,
+                3,
+                ahora=AHORA,
+            )
+
+        despues = self.sql(
+            """
+            SELECT COUNT(*)
+            FROM reservaciones
+            WHERE carne = ?
+            """,
+            (ACTIVO,),
+        )[0][0]
+
+        # La reservación original permanece,
+        # pero ninguna ocurrencia nueva se guarda.
+        self.assertEqual(antes, despues)
+        self.assertEqual(despues, 1)
 
     def test_serie_respeta_maximo_tres_reservaciones_activas(
         self

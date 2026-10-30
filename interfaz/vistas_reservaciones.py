@@ -27,7 +27,10 @@ from tkinter import font as tkfont
 from tkinter import messagebox, ttk
 
 from estudiantes.gestion_estudiantes import consultar_estudiantes
-from reservaciones.disponibilidad import consultar_disponibilidad
+from reservaciones.disponibilidad import (
+    consultar_disponibilidad,
+    consultar_franjas_disponibilidad,
+)
 from reservaciones.gestion_reservaciones import (
     buscar_por_estudiante, consultar_reservaciones, crear_reservacion,
 )
@@ -589,8 +592,64 @@ class VistaDisponibilidad(VistaBase):
                                             wraplength=640, justify="left")
         self.etiqueta_resultado.pack(anchor="w", pady=(14, 0))
 
+        
+        # H-11: tabla visual de disponibilidad por franjas.
+        marco_franjas = ttk.LabelFrame(
+            self.contenido,
+            text="Disponibilidad por franjas horarias",
+            padding=10,
+        )
+        marco_franjas.pack(
+            fill="both",
+            expand=True,
+            pady=(10, 0),
+        )
+
+        self.tabla_franjas = ttk.Treeview(
+            marco_franjas,
+            columns=("inicio", "fin", "estado"),
+            show="headings",
+            height=9,
+        )
+
+        self.tabla_franjas.heading("inicio", text="Inicio")
+        self.tabla_franjas.heading("fin", text="Fin")
+        self.tabla_franjas.heading("estado", text="Estado")
+
+        self.tabla_franjas.column(
+            "inicio", width=100, anchor="center"
+        )
+        self.tabla_franjas.column(
+            "fin", width=100, anchor="center"
+        )
+        self.tabla_franjas.column(
+            "estado", width=180, anchor="center"
+        )
+
+        self.tabla_franjas.tag_configure(
+            "Disponible", foreground=COLOR_EXITO
+        )
+        self.tabla_franjas.tag_configure(
+            "Ocupada", foreground=COLOR_ERROR
+        )
+        self.tabla_franjas.tag_configure(
+            "Fuera de servicio", foreground=COLOR_ERROR
+        )
+        self.tabla_franjas.tag_configure(
+            "Pasada", foreground=COLOR_SECUNDARIO
+        )
+
+        self.tabla_franjas.pack(fill="both", expand=True)
+
         ttk.Button(self.botones, text="Consultar disponibilidad",
                    style="Primario.TButton", command=self.consultar).pack(side="left")
+
+        ttk.Button(
+                self.botones,
+                text="Ver franjas horarias",
+                command=self.mostrar_franjas,
+        ).pack(side="left", padx=(8, 0))
+        
         ttk.Button(self.botones, text="Limpiar",
                    command=self.limpiar).pack(side="left", padx=(8, 0))
 
@@ -607,6 +666,40 @@ class VistaDisponibilidad(VistaBase):
         self.var_hora.set("")
         self.var_duracion.set("1")
         self.var_resultado.set("")
+
+        self.tabla_franjas.delete(
+            *self.tabla_franjas.get_children()
+        )
+    
+    def mostrar_franjas(self):
+        """H-11: muestra disponibilidad visual de una sala y fecha."""
+
+        self.tabla_franjas.delete(
+            *self.tabla_franjas.get_children()
+        )
+
+        codigo = codigo_desde_opcion(self.var_sala.get())
+        fecha = self.var_fecha.get().strip()
+
+        exito, mensaje, franjas = consultar_franjas_disponibilidad(
+            codigo,
+            fecha,
+        )
+
+        if not exito:
+            self.etiqueta_resultado.configure(
+                foreground=COLOR_ERROR
+            )
+            self.var_resultado.set(mensaje)
+            return
+
+        for inicio, fin, estado in franjas:
+            self.tabla_franjas.insert(
+                "",
+                "end",
+                values=(inicio, fin, estado),
+                tags=(estado,),
+            )
 
     @manejar_errores
     def consultar(self):

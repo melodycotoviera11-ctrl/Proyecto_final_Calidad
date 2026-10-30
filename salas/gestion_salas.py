@@ -223,6 +223,34 @@ def modificar_sala(codigo, nombre, capacidad, estado, ahora=None):
                 "de personas de una reservación activa futura.",
             )
 
+        
+        cantidad_futuras = 0
+
+        if estado == "fuera_de_servicio":
+            resultado_futuras = conexion.execute(
+                """
+                SELECT COUNT(*)
+                FROM reservaciones
+                WHERE codigo_sala = ? COLLATE NOCASE
+                  AND estado = 'activa'
+                  AND (
+                      fecha > ?
+                      OR (
+                          fecha = ?
+                          AND hora_inicio > ?
+                      )
+                  )
+                """,
+                (
+                    sala[0],
+                    hoy,
+                    hoy,
+                    ahora.strftime("%H:%M"),
+                ),
+            ).fetchone()
+
+            cantidad_futuras = resultado_futuras[0]
+
         with conexion:
             conexion.execute(
                 """
@@ -240,7 +268,16 @@ def modificar_sala(codigo, nombre, capacidad, estado, ahora=None):
                 ),
             )
 
-        return True, f"La sala {sala[0]} se modificó correctamente."
+        
+        mensaje = f"La sala {sala[0]} se modificó correctamente."
+
+        if estado == "fuera_de_servicio" and cantidad_futuras > 0:
+            mensaje += (
+                f" Advertencia: la sala tiene {cantidad_futuras} "
+                "reservación(es) activa(s) futura(s) que permanecerán registradas."
+            )
+
+        return True, mensaje
 
     except sqlite3.Error:
         return False, "No fue posible modificar la sala."
