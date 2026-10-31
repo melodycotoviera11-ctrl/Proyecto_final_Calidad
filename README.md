@@ -63,7 +63,7 @@ Salas
 
 ## Funcionalidades principales
 La aplicación incluye:
-- Panel principal con reservaciones del día, próximas reservaciones y ocupación de salas.
+- Panel principal con reservaciones del día, próximas reservaciones y ocupación de salas. El filtro de fecha aplica a las reservaciones del día y a la ocupación; las próximas reservaciones muestran siempre las activas desde el momento actual (hasta 8), según los filtros de sala y estado.
 - Registro, consulta y modificación de estudiantes.
 - Registro, consulta y modificación de salas.
 - Creación de reservaciones.
@@ -74,7 +74,7 @@ La aplicación incluye:
 - Creación de reservaciones recurrentes.
 - Cancelación individual y de ocurrencias futuras de una serie.
 - Generación de reportes en formato CSV.
-- Consulta del historial de auditoría.
+- Consulta del historial de auditoría: registra la creación, modificación y cancelación de reservaciones, y la creación y modificación de estudiantes y salas.
 - Salida controlada con verificación de cambios pendientes (Guardar y salir, Salir sin guardar o Cancelar).
 Los identificadores de reservación utilizan el formato:
 R0001
@@ -121,6 +121,7 @@ Se consideran cambios pendientes los datos escritos en un formulario de registro
 Proyecto_final_Calidad/
 │
 ├── database/
+│   ├── auditoria.py
 │   ├── conexion.py
 │   ├── inicializacion.py
 │   └── reservaciones.db
@@ -135,6 +136,7 @@ Proyecto_final_Calidad/
 │   ├── disponibilidad.py
 │   ├── gestion_recurrencia.py
 │   ├── gestion_reservaciones.py
+│   ├── panel.py
 │   ├── reglas.py
 │   ├── reportes.py
 │   └── validaciones.py
@@ -152,7 +154,8 @@ Proyecto_final_Calidad/
 │   └── vistas_salas.py
 │
 ├── evidencias/
-│   └── rendimiento_rnf09.txt
+│   ├── rendimiento_rnf09.txt      (evidencia entregada)
+│   └── ejecuciones/               (resultados de cada corrida, no se versiona)
 │
 ├── tests/
 │   └── pruebas automatizadas del sistema
@@ -189,7 +192,9 @@ La persona usuaria selecciona:
 - fecha inicial;
 - fecha final;
 - ubicación del archivo.
-El reporte se genera en formato CSV con codificación UTF-8.
+El reporte se genera en formato CSV con codificación UTF-8 con BOM (`utf-8-sig`). El BOM permite que Microsoft Excel reconozca la codificación y muestre correctamente las tildes y la ñ.
+
+Los textos que comienzan con `=`, `+`, `-`, `@`, tabulador o retorno de carro se exportan precedidos por un apóstrofo (`'`), para que la hoja de cálculo los muestre como texto y no los interprete como fórmula. Por ejemplo, un nombre `=1+1` aparece en el archivo como `'=1+1`. Los demás datos se exportan sin cambios.
 
 ## Pruebas automatizadas
 Las pruebas se ejecutan desde la raíz del proyecto con:
@@ -197,6 +202,8 @@ python -m unittest discover -s tests -t . -v
 
 Las pruebas utilizan bases de datos temporales independientes, por lo que no modifican:
 database/reservaciones.db
+
+La prueba de rendimiento (RNF-09) no modifica la evidencia entregada `evidencias/rendimiento_rnf09.txt`. Cada ejecución guarda sus tiempos en un archivo nuevo dentro de `evidencias/ejecuciones/`, con el sistema operativo y la fecha en el nombre (por ejemplo `rendimiento_rnf09_Windows_20261031-103000_123456.txt`). Esa carpeta no se sube al repositorio.
 
 La suite incluye pruebas sobre:
 - validaciones;
