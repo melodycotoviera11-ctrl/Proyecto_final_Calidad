@@ -3,3 +3,6 @@ __pycache__/
 .venv/
 venv/
 .DS_Store
+
+# Resultados de cada corrida de RNF-09 (H-13): no se versionan
+evidencias/ejecuciones/

@@ -18,7 +18,7 @@ import sys
 import time
 import unittest
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from reservaciones.disponibilidad import (
@@ -41,6 +41,21 @@ from tests.utilidades import (
 
 
 RAIZ = Path(__file__).resolve().parent.parent
+
+# H-13: la evidencia entregada se conserva; cada corrida escribe aparte.
+EVIDENCIA_ENTREGADA = RAIZ / "evidencias" / "rendimiento_rnf09.txt"
+CARPETA_EJECUCIONES = RAIZ / "evidencias" / "ejecuciones"
+
+
+def nombre_evidencia_ejecucion(momento=None):
+    """Nombre único por entorno y fecha, por ejemplo
+    rendimiento_rnf09_Windows_20261031-103000_123456.txt."""
+    momento = momento or datetime.now()
+    sistema = re.sub(r"[^A-Za-z0-9]+", "", platform.system()) or "SO"
+    return (
+        f"rendimiento_rnf09_{sistema}_"
+        f"{momento.strftime('%Y%m%d-%H%M%S_%f')}.txt"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -371,18 +386,26 @@ class TestRendimiento(
         resultados,
     ):
 
-        carpeta = (
-            RAIZ / "evidencias"
-        )
+        """
+        Guarda los tiempos medidos en un archivo NUEVO por ejecución.
+
+        Corrección del hallazgo H-13 (Fase 3, Grupo 07): antes se
+        sobrescribía evidencias/rendimiento_rnf09.txt, que es la
+        evidencia entregada por el equipo desarrollador. Ahora cada
+        corrida escribe en evidencias/ejecuciones/ con el sistema
+        operativo y la fecha en el nombre, y esa carpeta no se versiona.
+
+        Devuelve la ruta del archivo generado.
+        """
+
+        carpeta = CARPETA_EJECUCIONES
 
         carpeta.mkdir(
-            exist_ok=True
+            parents=True,
+            exist_ok=True,
         )
 
-        ruta = (
-            carpeta
-            / "rendimiento_rnf09.txt"
-        )
+        ruta = carpeta / nombre_evidencia_ejecucion()
 
         memoria = (
             obtener_memoria_total_gb()
@@ -453,6 +476,8 @@ class TestRendimiento(
             encoding="utf-8",
         )
 
+        return ruta
+
     # ------------------------------------------------------------------
     # RNF-09
     # ------------------------------------------------------------------
@@ -520,8 +545,14 @@ class TestRendimiento(
 
         # Guardar la evidencia antes de evaluar
         # los tiempos para que quede registro.
-        self.guardar_evidencia(
+        ruta_evidencia = self.guardar_evidencia(
             resultados
+        )
+
+        # H-13: la corrida no puede tocar la evidencia entregada.
+        self.assertNotEqual(
+            ruta_evidencia.resolve(),
+            EVIDENCIA_ENTREGADA.resolve(),
         )
 
         for nombre, tiempos in resultados.items():
