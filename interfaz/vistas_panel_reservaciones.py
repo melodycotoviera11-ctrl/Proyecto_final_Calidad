@@ -21,6 +21,11 @@ from reservaciones.gestion_reservaciones import (
     consultar_reservaciones,
 )
 
+from reservaciones.panel import (
+    SALA_TODAS,
+    datos_panel,
+)
+
 from salas.gestion_salas import (
     consultar_salas,
 )
@@ -62,7 +67,8 @@ class VistaPanelPrincipal(ttk.Frame):
     - Consultar las reservaciones del día.
     - Mostrar las próximas reservaciones.
     - Mostrar la ocupación por sala.
-    - Filtrar por fecha.
+    - Filtrar por fecha (solo afecta las reservaciones del día
+      y la ocupación; las próximas siempre parten de ahora, H-01).
     - Filtrar por sala.
     - Filtrar por estado.
     - Combinar los filtros.
@@ -70,11 +76,15 @@ class VistaPanelPrincipal(ttk.Frame):
     - Actualizarse después de crear, modificar o cancelar.
     """
 
-    def __init__(self, padre):
+    def __init__(self, padre, reloj=datetime.now):
         super().__init__(
             padre,
             padding=(20, 16),
         )
+
+        # Función que devuelve el momento actual. Las pruebas pueden
+        # pasar un reloj fijo para obtener resultados deterministas.
+        self.reloj = reloj
 
         self.var_fecha = tk.StringVar(
             value=date.today().isoformat()
@@ -282,7 +292,10 @@ class VistaPanelPrincipal(ttk.Frame):
 
         marco_proximas = ttk.LabelFrame(
             self,
-            text="Próximas reservaciones",
+            text=(
+                "Próximas reservaciones (desde ahora, "
+                "según los filtros de sala y estado)"
+            ),
             padding=8,
         )
 
@@ -404,59 +417,8 @@ class VistaPanelPrincipal(ttk.Frame):
         return tabla
 
     # ----------------------------------------------------------------------
-    # Aplicar filtros
-    # ----------------------------------------------------------------------
-
-    def _filas_filtradas(self, filas):
-        """
-        Aplica los filtros seleccionados por el usuario.
-
-        Los filtros pueden combinarse:
-        - Fecha.
-        - Sala.
-        - Estado.
-        """
-
-        fecha = self.var_fecha.get().strip()
-        sala = self.var_sala.get().strip()
-        estado = self.var_estado.get().strip().lower()
-
-        # Validar fecha.
-        if fecha:
-            try:
-                date.fromisoformat(fecha)
-            except ValueError:
-                raise ValueError(
-                    "La fecha debe tener formato AAAA-MM-DD."
-                )
-
-        codigo_sala = ""
-
-        if sala and sala != "Todas":
-            codigo_sala = sala.split(
-                " - ",
-                1,
-            )[0]
-
-        return [
-            fila
-            for fila in filas
-            if (
-                not fecha
-                or fila[5] == fecha
-            )
-            and (
-                not codigo_sala
-                or fila[3] == codigo_sala
-            )
-            and (
-                estado == "todos"
-                or fila[9] == estado
-            )
-        ]
-
-    # ----------------------------------------------------------------------
-    # Reservaciones del día
+    # Mostrar resultados
+    # (la lógica de filtrado está en reservaciones/panel.py, corrección H-01)
     # ----------------------------------------------------------------------
 
     def _mostrar_dia(self, filas):
@@ -481,46 +443,13 @@ class VistaPanelPrincipal(ttk.Frame):
                 ),
             )
 
-    # ----------------------------------------------------------------------
-    # Próximas reservaciones
-    # ----------------------------------------------------------------------
-
     def _mostrar_proximas(self, filas):
 
         self.tabla_proximas.delete(
             *self.tabla_proximas.get_children()
         )
 
-        ahora = datetime.now()
-
-        futuras = []
-
         for fila in filas:
-
-            if fila[9] != "activa":
-                continue
-
-            try:
-                inicio = datetime.strptime(
-                    f"{fila[5]} {fila[6]}",
-                    "%Y-%m-%d %H:%M",
-                )
-            except ValueError:
-                continue
-
-            if inicio >= ahora:
-                futuras.append(
-                    (
-                        inicio,
-                        fila,
-                    )
-                )
-
-        futuras.sort(
-            key=lambda elemento: elemento[0]
-        )
-
-        for _, fila in futuras[:8]:
 
             self.tabla_proximas.insert(
                 "",
@@ -536,86 +465,29 @@ class VistaPanelPrincipal(ttk.Frame):
                 ),
             )
 
-    # ----------------------------------------------------------------------
-    # Ocupación por sala
-    # ----------------------------------------------------------------------
-
-    def _mostrar_ocupacion(self, filas):
+    def _mostrar_ocupacion(self, ocupacion):
 
         self.tabla_ocupacion.delete(
             *self.tabla_ocupacion.get_children()
         )
 
-        fecha = self.var_fecha.get().strip()
-        sala_filtro = self.var_sala.get().strip()
-
-        codigo_filtro = ""
-
-        if sala_filtro and sala_filtro != "Todas":
-            codigo_filtro = sala_filtro.split(
-                " - ",
-                1,
-            )[0]
-
-        filas_activas = [
-            fila
-            for fila in filas
-            if fila[9] == "activa"
-        ]
-
-        # La ocupación corresponde a la fecha consultada.
-        if fecha:
-            filas_activas = [
-                fila
-                for fila in filas_activas
-                if fila[5] == fecha
-            ]
-
-        if codigo_filtro:
-            filas_activas = [
-                fila
-                for fila in filas_activas
-                if fila[3] == codigo_filtro
-            ]
-
-        for codigo, nombre, capacidad, estado in self.salas:
-
-            reservas = [
-                fila
-                for fila in filas_activas
-                if fila[3] == codigo
-            ]
-
-            cantidad_reservas = len(reservas)
-
-            cantidad_personas = sum(
-                fila[8]
-                for fila in reservas
-            )
-
-            porcentaje = (
-                cantidad_personas / capacidad * 100
-                if capacidad
-                else 0
-            )
-
-            texto_estado = (
-                "Fuera de servicio"
-                if estado != "disponible"
-                else "Disponible"
-            )
+        for valores in ocupacion:
 
             self.tabla_ocupacion.insert(
                 "",
                 "end",
-                values=(
-                    codigo,
-                    capacidad,
-                    cantidad_reservas,
-                    cantidad_personas,
-                    f"{porcentaje:.0f}%",
-                    texto_estado,
-                ),
+                values=valores,
+            )
+
+    def _vaciar_tablas(self):
+
+        for tabla in (
+            self.tabla_dia,
+            self.tabla_proximas,
+            self.tabla_ocupacion,
+        ):
+            tabla.delete(
+                *tabla.get_children()
             )
 
     # ----------------------------------------------------------------------
@@ -630,12 +502,9 @@ class VistaPanelPrincipal(ttk.Frame):
 
             self.salas = consultar_salas()
 
-            # --------------------------------------------------------------
             # Actualizar lista de salas del filtro.
-            # --------------------------------------------------------------
-
             valores_salas = (
-                "Todas",
+                SALA_TODAS,
             ) + tuple(
                 f"{codigo} - {nombre}"
                 for codigo, nombre, _capacidad, _estado
@@ -645,82 +514,27 @@ class VistaPanelPrincipal(ttk.Frame):
             self.combo_sala["values"] = valores_salas
 
             if self.var_sala.get() not in valores_salas:
-                self.var_sala.set("Todas")
+                self.var_sala.set(SALA_TODAS)
 
-            # --------------------------------------------------------------
-            # Aplicar filtros.
-            # --------------------------------------------------------------
-
-            filtradas = self._filas_filtradas(
-                filas
+            # Reservaciones del día, próximas y ocupación (H-01).
+            datos = datos_panel(
+                filas,
+                self.salas,
+                fecha=self.var_fecha.get(),
+                sala=self.var_sala.get(),
+                estado=self.var_estado.get(),
+                ahora=self.reloj(),
             )
 
-            # --------------------------------------------------------------
-            # Reservaciones de la fecha seleccionada.
-            # --------------------------------------------------------------
+            self._mostrar_dia(datos["dia"])
+            self._mostrar_proximas(datos["proximas"])
+            self._mostrar_ocupacion(datos["ocupacion"])
 
-            fecha = self.var_fecha.get().strip()
-
-            filas_dia = [
-                fila
-                for fila in filtradas
-                if (
-                    not fecha
-                    or fila[5] == fecha
-                )
-            ]
-
-            self._mostrar_dia(
-                filas_dia
-            )
-
-            # --------------------------------------------------------------
-            # Próximas reservaciones.
-            # --------------------------------------------------------------
-
-            self._mostrar_proximas(
-                filtradas
-            )
-
-            # --------------------------------------------------------------
-            # Ocupación por sala.
-            # --------------------------------------------------------------
-
-            self._mostrar_ocupacion(
-                filtradas
-            )
-
-            # --------------------------------------------------------------
-            # Mensaje de resultados.
-            # --------------------------------------------------------------
-
-            if filas_dia:
-
-                self.var_mensaje.set(
-                    f"{len(filas_dia)} reservaciones "
-                    "para los filtros seleccionados."
-                )
-
-            else:
-
-                self.var_mensaje.set(
-                    "No hay reservaciones para "
-                    "los filtros seleccionados."
-                )
+            self.var_mensaje.set(datos["mensaje"])
 
         except ValueError as error:
 
-            self.tabla_dia.delete(
-                *self.tabla_dia.get_children()
-            )
-
-            self.tabla_proximas.delete(
-                *self.tabla_proximas.get_children()
-            )
-
-            self.tabla_ocupacion.delete(
-                *self.tabla_ocupacion.get_children()
-            )
+            self._vaciar_tablas()
 
             self.var_mensaje.set(
                 str(error)
