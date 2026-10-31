@@ -1,6 +1,12 @@
 from datetime import datetime
 import sqlite3
 
+from database.auditoria import (
+    ACCION_CREACION,
+    ACCION_MODIFICACION,
+    ENTIDAD_ESTUDIANTE,
+    registrar_auditoria,
+)
 from database.conexion import obtener_conexion
 
 
@@ -70,6 +76,14 @@ def registrar_estudiante(carne, nombre, correo):
                     (carne, nombre_completo, correo, estado)
                 VALUES (?, ?, ?, 'activo')
             """, (carne, nombre, correo))
+
+            # RF-17 (corrección H-02): auditar el alta del estudiante.
+            registrar_auditoria(
+                conexion,
+                ACCION_CREACION,
+                ENTIDAD_ESTUDIANTE,
+                carne,
+            )
 
         return True, "Estudiante registrado correctamente."
 
@@ -198,6 +212,14 @@ def modificar_estudiante(carne, nombre, correo, estado):
                 WHERE carne = ?
                 """,
                 (nombre, correo, estado, estudiante[0]),
+            )
+
+            # RF-17 (corrección H-02): auditar la modificación.
+            registrar_auditoria(
+                conexion,
+                ACCION_MODIFICACION,
+                ENTIDAD_ESTUDIANTE,
+                estudiante[0],
             )
 
         mensaje = "La información del estudiante se modificó correctamente."
