@@ -4,8 +4,11 @@ Lógica para generar reportes de reservaciones en formato CSV.
 RF-16:
 - Permite consultar reservaciones dentro de un rango de fechas.
 - Genera un archivo CSV con encabezados identificables.
-- Utiliza codificación UTF-8 para conservar tildes y ñ.
+- Utiliza codificación UTF-8 con BOM para conservar tildes y ñ y
+  facilitar su apertura en Microsoft Excel.
 - No crea ningún archivo si el destino no fue seleccionado.
+- Neutraliza los textos que una hoja de cálculo podría interpretar
+  como fórmula (corrección del hallazgo H-14, Fase 3, Grupo 07).
 """
 
 import csv
@@ -30,6 +33,23 @@ ENCABEZADOS_REPORTE = (
     "Cantidad de personas",
     "Estado",
 )
+
+# H-14: caracteres con los que una hoja de cálculo inicia una fórmula.
+# Se incluyen el tabulador y el retorno de carro, que algunas
+# aplicaciones descartan antes de evaluar la celda.
+PREFIJOS_FORMULA = ("=", "+", "-", "@", "\t", "\r")
+
+
+def neutralizar_celda(valor):
+    """
+    H-14. Antepone un apóstrofo a los textos que comienzan con un
+    símbolo de fórmula, para que la hoja de cálculo los muestre como
+    texto y no los evalúe. Los números y los demás textos no cambian.
+    """
+    if isinstance(valor, str) and valor.startswith(PREFIJOS_FORMULA):
+        return "'" + valor
+
+    return valor
 
 
 def consultar_reservaciones_por_fecha(fecha_inicial, fecha_final):
@@ -108,7 +128,9 @@ def generar_reporte_csv(fecha_inicial, fecha_final, ruta_destino):
             escritor.writerow(ENCABEZADOS_REPORTE)
 
             for fila in filas:
-                escritor.writerow(fila)
+                escritor.writerow(
+                    [neutralizar_celda(valor) for valor in fila]
+                )
 
     except OSError:
         return (

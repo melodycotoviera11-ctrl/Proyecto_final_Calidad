@@ -1,6 +1,12 @@
 import sqlite3
 from datetime import datetime
 
+from database.auditoria import (
+    ACCION_CREACION,
+    ACCION_MODIFICACION,
+    ENTIDAD_SALA,
+    registrar_auditoria,
+)
 from database.conexion import obtener_conexion
 
 
@@ -130,6 +136,14 @@ def registrar_sala(codigo, nombre, capacidad, estado="disponible"):
                     capacidad,
                     estado,
                 ),
+            )
+
+            # RF-17 (corrección H-02): auditar el alta de la sala.
+            registrar_auditoria(
+                conexion,
+                ACCION_CREACION,
+                ENTIDAD_SALA,
+                codigo,
             )
 
         return True, f"La sala {codigo} se registró correctamente."
@@ -266,6 +280,14 @@ def modificar_sala(codigo, nombre, capacidad, estado, ahora=None):
                     estado,
                     sala[0],
                 ),
+            )
+
+            # RF-17 (corrección H-02): auditar la modificación.
+            registrar_auditoria(
+                conexion,
+                ACCION_MODIFICACION,
+                ENTIDAD_SALA,
+                sala[0],
             )
 
         

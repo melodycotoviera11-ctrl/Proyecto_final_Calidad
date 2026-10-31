@@ -9,6 +9,7 @@ gráfica solo llama a estas funciones y nunca ejecuta SQL (RNF-07).
 import sqlite3
 from datetime import datetime
 
+from database.auditoria import registrar_auditoria as _registrar_auditoria_comun
 from database.conexion import obtener_conexion
 from reservaciones import validaciones as v
 from reservaciones.reglas import validar_reservacion
@@ -111,6 +112,8 @@ def registrar_auditoria(
     para que se confirme o se revierta junto con la operación (RF-17).
 
     Los identificadores de reservación se almacenan con formato R0001.
+    La inserción se delega en database.auditoria, que también usan
+    los módulos de estudiantes y salas (corrección H-02).
     """
 
     if entidad == "reservación":
@@ -126,20 +129,11 @@ def registrar_auditoria(
                 identificador
             )
 
-    conexion.execute(
-        """
-        INSERT INTO auditoria
-            (fecha_hora, tipo_accion, entidad, identificador)
-        VALUES (?, ?, ?, ?)
-        """,
-        (
-            datetime.now().strftime(
-                "%Y-%m-%d %H:%M:%S"
-            ),
-            tipo_accion,
-            entidad,
-            str(identificador),
-        ),
+    _registrar_auditoria_comun(
+        conexion,
+        tipo_accion,
+        entidad,
+        identificador,
     )
 
 
