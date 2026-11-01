@@ -71,8 +71,8 @@ La aplicación incluye:
 - Búsqueda de reservaciones por estudiante.
 - Consulta de disponibilidad.
 - Modificación y cancelación de reservaciones.
-- Creación de reservaciones recurrentes.
-- Cancelación individual y de ocurrencias futuras de una serie.
+- Creación de reservaciones recurrentes (series semanales de 2 a 8 ocurrencias). Antes de guardar se muestra una previsualización con cada ocurrencia, su horario y un resumen de conflictos; la serie solo se guarda si la persona usuaria la confirma y no existen conflictos. El botón Previsualizar permite revisarla sin guardar nada.
+- Cancelación individual de una ocurrencia y cancelación de la ocurrencia seleccionada y las posteriores de su serie (botón "Cancelar esta y futuras"). Las ocurrencias anteriores a la seleccionada y las de otras series no se modifican; se pide confirmación indicando las fechas afectadas y cada cancelación queda en auditoría.
 - Generación de reportes en formato CSV.
 - Consulta del historial de auditoría: registra la creación, modificación y cancelación de reservaciones, y la creación y modificación de estudiantes y salas.
 - Salida controlada con verificación de cambios pendientes (Guardar y salir, Salir sin guardar o Cancelar).
