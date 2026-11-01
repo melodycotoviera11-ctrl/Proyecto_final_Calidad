@@ -10,6 +10,15 @@ La interfaz no accede directamente a SQLite. Este módulo coordina:
 
 La lógica de validación y persistencia se reutiliza desde los módulos
 existentes del proyecto.
+
+Fase 6 (Grupo 4):
+    - H-03: previsualizar_serie_recurrente() evalúa la serie completa sin
+      guardar nada, para mostrar el resumen de conflictos y pedir
+      confirmación antes de crearla. La creación usa la misma evaluación,
+      por lo que la previsualización y el resultado real no pueden diferir.
+    - H-09: cancelar_serie_desde_ocurrencia() cancela la ocurrencia
+      seleccionada y las posteriores de su serie; antes se cancelaba desde
+      la fecha actual sin considerar la ocurrencia elegida.
 """
 
 from datetime import date, datetime, timedelta
@@ -91,6 +100,215 @@ def generar_fechas_semanales(fecha_inicio, cantidad):
     ]
 
 
+def _evaluar_serie(
+    conexion,
+    carne,
+    codigo_sala,
+    fechas,
+    hora_inicio,
+    duracion,
+    cantidad_personas,
+    ahora,
+):
+    """
+    Evalúa todas las ocurrencias de una serie sin escribir en la base.
+
+    Compartida por la previsualización (H-03) y por la creación, de modo
+    que ambas apliquen exactamente las mismas reglas (RN-01 a RN-11).
+
+    Returns:
+        tuple: (datos_validados, ocurrencias, conflictos)
+            datos_validados: datos normalizados de las ocurrencias válidas.
+            ocurrencias: una entrada por fecha con número, fecha, horario,
+                         estado ("disponible" o "conflicto") y motivo.
+            conflictos: textos "AAAA-MM-DD: motivo" y, si corresponde, el
+                        incumplimiento del límite de RN-11 para la serie.
+    """
+
+    datos_validados = []
+    ocurrencias = []
+    conflictos = []
+
+    # Revisar todas las ocurrencias antes de guardar.
+    for numero, fecha in enumerate(fechas, start=1):
+        try:
+            datos = validar_reservacion(
+                conexion=conexion,
+                carne=carne,
+                codigo_sala=codigo_sala,
+                fecha=fecha,
+                hora_inicio=hora_inicio,
+                duracion=duracion,
+                cantidad_personas=cantidad_personas,
+                ahora=ahora,
+            )
+
+            datos_validados.append(datos)
+
+            ocurrencias.append({
+                "numero": numero,
+                "fecha": fecha.isoformat(),
+                "hora_inicio": v.formatear_hora(datos["hora_inicio"]),
+                "hora_fin": v.formatear_hora(
+                    datos["hora_inicio"] + datos["duracion"]
+                ),
+                "estado": "disponible",
+                "motivo": "",
+            })
+
+        except ValueError as error:
+            conflictos.append(
+                f"{fecha.isoformat()}: {error}"
+            )
+
+            ocurrencias.append({
+                "numero": numero,
+                "fecha": fecha.isoformat(),
+                "hora_inicio": str(hora_inicio).strip(),
+                "hora_fin": "",
+                "estado": "conflicto",
+                "motivo": str(error),
+            })
+
+    # RN-11:
+    # También se deben contar las nuevas reservaciones de esta serie.
+    #
+    # Antes este control no funcionaba porque todas las ocurrencias
+    # se validaban antes de insertar alguna, por lo que cada una veía
+    # únicamente las reservaciones que ya existían en la BD.
+    if not conflictos and datos_validados:
+
+        referencia = (
+            ahora
+            if ahora is not None
+            else datetime.now()
+        )
+
+        vigentes = contar_reservaciones_vigentes(
+            conexion,
+            datos_validados[0]["carne"],
+            referencia,
+        )
+
+        total_resultante = (
+            vigentes
+            + len(datos_validados)
+        )
+
+        if (
+            total_resultante
+            > MAXIMO_RESERVACIONES_VIGENTES
+        ):
+            conflictos.append(
+                "Límite de reservaciones: el estudiante ya tiene "
+                f"{vigentes} reservaciones activas presentes o futuras "
+                f"y la serie agregaría {len(datos_validados)}. "
+                f"El máximo permitido es "
+                f"{MAXIMO_RESERVACIONES_VIGENTES}."
+            )
+
+    return datos_validados, ocurrencias, conflictos
+
+
+def _mensaje_conflictos(conflictos):
+    """Texto único con el resumen de conflictos de una serie."""
+
+    detalle = "\n- ".join(
+        conflictos
+    )
+
+    return (
+        "Se encontraron conflictos en la serie recurrente.\n- "
+        + detalle
+    )
+
+
+def previsualizar_serie_recurrente(
+    carne,
+    codigo_sala,
+    fecha_inicio,
+    hora_inicio,
+    duracion,
+    cantidad_personas,
+    cantidad_ocurrencias,
+    ahora=None,
+):
+    """
+    RF-14 / H-03: evalúa la serie completa sin guardar nada.
+
+    Permite mostrar, antes de crear la serie, cada ocurrencia con su
+    fecha, su horario y si está disponible o presenta conflicto, junto
+    con el resumen de conflictos. No inicia transacciones de escritura,
+    no inserta reservaciones y no registra auditoría.
+
+    Returns:
+        dict con las claves:
+            ocurrencias: lista de ocurrencias (ver _evaluar_serie).
+            total: cantidad de ocurrencias de la serie.
+            validas: cantidad de ocurrencias sin conflicto.
+            conflictos: lista de textos de conflicto (vacía si no hay).
+            puede_confirmar: True solo si la serie completa es válida.
+            resumen: texto breve para la persona usuaria.
+
+    Raises:
+        ValueError: si la cantidad de ocurrencias o la fecha inicial
+                    no son válidas (no es posible armar la serie).
+    """
+
+    fechas = generar_fechas_semanales(
+        fecha_inicio,
+        cantidad_ocurrencias,
+    )
+
+    conexion = obtener_conexion()
+
+    try:
+        _, ocurrencias, conflictos = _evaluar_serie(
+            conexion,
+            carne,
+            codigo_sala,
+            fechas,
+            hora_inicio,
+            duracion,
+            cantidad_personas,
+            ahora,
+        )
+
+    finally:
+        conexion.close()
+
+    total = len(ocurrencias)
+
+    validas = sum(
+        1
+        for ocurrencia in ocurrencias
+        if ocurrencia["estado"] == "disponible"
+    )
+
+    puede_confirmar = not conflictos
+
+    if puede_confirmar:
+        resumen = (
+            f"Las {total} ocurrencias están disponibles. "
+            "Confirme para guardar la serie."
+        )
+    else:
+        resumen = (
+            "La serie no puede guardarse: "
+            f"{len(conflictos)} conflicto(s) detectado(s). "
+            "Corrija los datos y vuelva a intentarlo."
+        )
+
+    return {
+        "ocurrencias": ocurrencias,
+        "total": total,
+        "validas": validas,
+        "conflictos": conflictos,
+        "puede_confirmar": puede_confirmar,
+        "resumen": resumen,
+    }
+
+
 def crear_reservacion_recurrente(
     carne,
     codigo_sala,
@@ -121,77 +339,21 @@ def crear_reservacion_recurrente(
 
         serie_id = str(uuid4())
 
-        datos_validados = []
-        conflictos = []
-
-        # Revisar todas las ocurrencias antes de guardar.
-        for fecha in fechas:
-            try:
-                datos = validar_reservacion(
-                    conexion=conexion,
-                    carne=carne,
-                    codigo_sala=codigo_sala,
-                    fecha=fecha,
-                    hora_inicio=hora_inicio,
-                    duracion=duracion,
-                    cantidad_personas=cantidad_personas,
-                    ahora=ahora,
-                )
-
-                datos_validados.append(datos)
-
-            except ValueError as error:
-                conflictos.append(
-                    f"{fecha.isoformat()}: {error}"
-                )
-
-        # RN-11:
-        # También se deben contar las nuevas reservaciones de esta serie.
-        #
-        # Antes este control no funcionaba porque todas las ocurrencias
-        # se validaban antes de insertar alguna, por lo que cada una veía
-        # únicamente las reservaciones que ya existían en la BD.
-        if not conflictos and datos_validados:
-
-            referencia = (
-                ahora
-                if ahora is not None
-                else datetime.now()
-            )
-
-            vigentes = contar_reservaciones_vigentes(
-                conexion,
-                datos_validados[0]["carne"],
-                referencia,
-            )
-
-            total_resultante = (
-                vigentes
-                + len(datos_validados)
-            )
-
-            if (
-                total_resultante
-                > MAXIMO_RESERVACIONES_VIGENTES
-            ):
-                conflictos.append(
-                    "Límite de reservaciones: el estudiante ya tiene "
-                    f"{vigentes} reservaciones activas presentes o futuras "
-                    f"y la serie agregaría {len(datos_validados)}. "
-                    f"El máximo permitido es "
-                    f"{MAXIMO_RESERVACIONES_VIGENTES}."
-                )
+        datos_validados, _, conflictos = _evaluar_serie(
+            conexion,
+            carne,
+            codigo_sala,
+            fechas,
+            hora_inicio,
+            duracion,
+            cantidad_personas,
+            ahora,
+        )
 
         # Si existe cualquier conflicto, no se guarda nada.
         if conflictos:
-
-            detalle = "\n- ".join(
-                conflictos
-            )
-
             raise ValueError(
-                "Se encontraron conflictos en la serie recurrente.\n- "
-                + detalle
+                _mensaje_conflictos(conflictos)
             )
 
         # Solo si toda la serie es válida se almacena.
@@ -222,6 +384,7 @@ def crear_reservacion_recurrente(
 
     finally:
         conexion.close()
+
 
 def obtener_serie_id(id_reservacion):
     """
@@ -387,3 +550,188 @@ def cancelar_ocurrencias_futuras(
     finally:
         if conexion is not None:
             conexion.close()
+
+def obtener_ocurrencia(id_reservacion):
+    """
+    H-09: devuelve los datos de la ocurrencia seleccionada.
+
+    Returns:
+        dict con serie_id, fecha (AAAA-MM-DD), estado e id público
+        (R0001), o None si el ID no es válido o no existe.
+    """
+
+    try:
+        id_interno = normalizar_id_reservacion(
+            id_reservacion
+        )
+
+    except ValueError:
+        return None
+
+    conexion = obtener_conexion()
+
+    try:
+        fila = conexion.execute(
+            """
+            SELECT id, serie_id, fecha, estado
+            FROM reservaciones
+            WHERE id = ?
+            """,
+            (id_interno,),
+        ).fetchone()
+
+    finally:
+        conexion.close()
+
+    if fila is None:
+        return None
+
+    return {
+        "id": f"R{fila[0]:04d}",
+        "serie_id": fila[1],
+        "fecha": fila[2],
+        "estado": fila[3],
+    }
+
+
+def _fecha_desde_cancelacion(fecha_ocurrencia, ahora=None):
+    """
+    Fecha a partir de la cual se cancela: la de la ocurrencia
+    seleccionada, sin tocar nunca ocurrencias anteriores a hoy.
+    """
+
+    referencia = (
+        ahora
+        if ahora is not None
+        else datetime.now()
+    )
+
+    return max(
+        fecha_ocurrencia,
+        referencia.date().isoformat(),
+    )
+
+
+def previsualizar_cancelacion_desde_ocurrencia(
+    id_reservacion,
+    ahora=None,
+):
+    """
+    H-09: indica qué ocurrencias se cancelarían, sin modificar nada.
+
+    Incluye la ocurrencia seleccionada y las posteriores activas de su
+    serie. Las anteriores no se consideran.
+
+    Returns:
+        dict con serie_id, desde (fecha) y ocurrencias (lista de
+        {"id", "fecha"}). Si la reservación no existe o no pertenece a
+        una serie, devuelve None.
+    """
+
+    ocurrencia = obtener_ocurrencia(
+        id_reservacion
+    )
+
+    if ocurrencia is None or not ocurrencia["serie_id"]:
+        return None
+
+    desde = _fecha_desde_cancelacion(
+        ocurrencia["fecha"],
+        ahora,
+    )
+
+    conexion = obtener_conexion()
+
+    try:
+        filas = conexion.execute(
+            """
+            SELECT id, fecha
+            FROM reservaciones
+            WHERE serie_id = ?
+              AND fecha >= ?
+              AND estado = 'activa'
+            ORDER BY fecha ASC, hora_inicio ASC, id ASC
+            """,
+            (
+                ocurrencia["serie_id"],
+                desde,
+            ),
+        ).fetchall()
+
+    finally:
+        conexion.close()
+
+    return {
+        "serie_id": ocurrencia["serie_id"],
+        "desde": desde,
+        "ocurrencias": [
+            {
+                "id": f"R{fila[0]:04d}",
+                "fecha": fila[1],
+            }
+            for fila in filas
+        ],
+    }
+
+
+def cancelar_serie_desde_ocurrencia(
+    id_reservacion,
+    ahora=None,
+):
+    """
+    RF-14 / H-09: cancela la ocurrencia seleccionada y todas las
+    posteriores de su serie.
+
+    Las ocurrencias anteriores a la seleccionada, las ya canceladas y
+    las reservaciones de otras series no se modifican. Cada cancelación
+    queda en auditoría y toda la operación es atómica.
+
+    Returns:
+        tuple: (exito, mensaje, cantidad_cancelada)
+    """
+
+    ocurrencia = obtener_ocurrencia(
+        id_reservacion
+    )
+
+    if ocurrencia is None:
+        return (
+            False,
+            "No existe la reservación seleccionada.",
+            0,
+        )
+
+    if not ocurrencia["serie_id"]:
+        return (
+            False,
+            "La reservación seleccionada no pertenece "
+            "a una serie recurrente.",
+            0,
+        )
+
+    desde = _fecha_desde_cancelacion(
+        ocurrencia["fecha"],
+        ahora,
+    )
+
+    exito, mensaje, cantidad = cancelar_ocurrencias_futuras(
+        ocurrencia["serie_id"],
+        desde,
+    )
+
+    if not exito:
+        return exito, mensaje, cantidad
+
+    if cantidad == 1:
+        mensaje = (
+            "Se canceló 1 ocurrencia de la serie "
+            f"a partir del {desde}."
+        )
+
+    else:
+        mensaje = (
+            f"Se cancelaron {cantidad} ocurrencias de la serie "
+            f"a partir del {desde}."
+        )
+
+    return True, mensaje, cantidad

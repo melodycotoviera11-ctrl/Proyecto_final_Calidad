@@ -10,6 +10,7 @@ from estudiantes.gestion_estudiantes import consultar_estudiantes
 
 from reservaciones.gestion_recurrencia import (
     crear_reservacion_recurrente,
+    previsualizar_serie_recurrente,
 )
 
 from interfaz.vistas_reservaciones import (
@@ -23,6 +24,148 @@ from interfaz.vistas_reservaciones import (
     ETIQUETAS,
     COLOR_SECUNDARIO,
 )
+
+
+class DialogoPrevisualizacionSerie(tk.Toplevel):
+    """
+    H-03. Muestra cada ocurrencia de la serie y el resumen de conflictos
+    antes de guardar. La persona usuaria debe confirmar de forma
+    explícita; si hay conflictos, no es posible confirmar.
+
+    Tras cerrarse, el atributo `confirmado` indica la decisión.
+    """
+
+    def __init__(self, padre, vista_previa, solo_consulta=False):
+        super().__init__(padre)
+
+        self.confirmado = False
+        self.vista_previa = vista_previa
+
+        self.title("Previsualización de la serie recurrente")
+        self.transient(padre)
+        self.resizable(True, True)
+        self.minsize(620, 360)
+
+        marco = ttk.Frame(self, padding=16)
+        marco.pack(fill="both", expand=True)
+
+        ttk.Label(
+            marco,
+            text="Previsualización de la serie",
+            style="Titulo.TLabel",
+        ).pack(anchor="w")
+
+        self.etiqueta_resumen = ttk.Label(
+            marco,
+            text=vista_previa["resumen"],
+            wraplength=580,
+        )
+        self.etiqueta_resumen.pack(anchor="w", pady=(4, 10))
+
+        columnas = ("numero", "fecha", "horario", "estado", "detalle")
+
+        self.tabla = ttk.Treeview(
+            marco,
+            columns=columnas,
+            show="headings",
+            height=min(max(vista_previa["total"], 3), 8),
+        )
+
+        encabezados = {
+            "numero": ("N.º", 45),
+            "fecha": ("Fecha", 100),
+            "horario": ("Horario", 110),
+            "estado": ("Estado", 100),
+            "detalle": ("Detalle", 330),
+        }
+
+        for columna, (texto, ancho) in encabezados.items():
+            self.tabla.heading(columna, text=texto)
+            self.tabla.column(columna, width=ancho, anchor="w")
+
+        for ocurrencia in vista_previa["ocurrencias"]:
+            if ocurrencia["hora_fin"]:
+                horario = (
+                    f"{ocurrencia['hora_inicio']} a "
+                    f"{ocurrencia['hora_fin']}"
+                )
+            else:
+                horario = ocurrencia["hora_inicio"]
+
+            self.tabla.insert(
+                "",
+                "end",
+                values=(
+                    ocurrencia["numero"],
+                    ocurrencia["fecha"],
+                    horario,
+                    (
+                        "Disponible"
+                        if ocurrencia["estado"] == "disponible"
+                        else "Conflicto"
+                    ),
+                    ocurrencia["motivo"],
+                ),
+            )
+
+        self.tabla.pack(fill="both", expand=True)
+
+        # Los conflictos de la serie completa (por ejemplo, RN-11) no
+        # pertenecen a una fecha concreta: se muestran como resumen.
+        generales = [
+            conflicto
+            for conflicto in vista_previa["conflictos"]
+            if conflicto.startswith("Límite")
+        ]
+
+        if generales:
+            ttk.Label(
+                marco,
+                text="\n".join(generales),
+                wraplength=580,
+                foreground="#B00020",
+            ).pack(anchor="w", pady=(8, 0))
+
+        botones = ttk.Frame(marco)
+        botones.pack(fill="x", pady=(12, 0))
+
+        if solo_consulta:
+            ttk.Button(
+                botones,
+                text="Cerrar",
+                command=self.cancelar,
+            ).pack(side="right")
+
+        else:
+            self.boton_confirmar = ttk.Button(
+                botones,
+                text="Confirmar y guardar serie",
+                style="Primario.TButton",
+                command=self.confirmar,
+            )
+            self.boton_confirmar.pack(side="left")
+
+            if not vista_previa["puede_confirmar"]:
+                self.boton_confirmar.state(["disabled"])
+
+            ttk.Button(
+                botones,
+                text="Volver y corregir",
+                command=self.cancelar,
+            ).pack(side="left", padx=(8, 0))
+
+        self.protocol("WM_DELETE_WINDOW", self.cancelar)
+
+    def confirmar(self):
+        if not self.vista_previa["puede_confirmar"]:
+            return
+
+        self.confirmado = True
+        self.destroy()
+
+    def cancelar(self):
+        self.confirmado = False
+        self.destroy()
 
 
 class VistaReservacionRecurrente(VistaBase):
@@ -166,6 +309,15 @@ class VistaReservacionRecurrente(VistaBase):
 
         ttk.Button(
             self.botones,
+            text="Previsualizar",
+            command=self.previsualizar,
+        ).pack(
+            side="left",
+            padx=(8, 0),
+        )
+
+        ttk.Button(
+            self.botones,
             text="Limpiar",
             command=self.limpiar,
         ).pack(
@@ -277,28 +429,98 @@ class VistaReservacionRecurrente(VistaBase):
 
         return True, "Serie recurrente guardada correctamente."
 
-    @manejar_errores
-    def crear(self):
-        carne = self.var_carne.get().strip()
-        codigo_sala = codigo_desde_opcion(
-            self.var_sala.get()
+    def _datos_formulario(self):
+        return {
+            "carne": self.var_carne.get().strip(),
+            "codigo_sala": codigo_desde_opcion(
+                self.var_sala.get()
+            ),
+            "fecha_inicio": self.var_fecha.get().strip(),
+            "hora_inicio": self.var_hora.get().strip(),
+            "duracion": self.var_duracion.get().strip(),
+            "cantidad_personas": self.var_cantidad.get().strip(),
+            "cantidad_ocurrencias": self.var_ocurrencias.get().strip(),
+        }
+
+    def _mostrar_dialogo(self, vista_previa, solo_consulta=False):
+        """
+        Abre el diálogo de previsualización y devuelve True solo si la
+        persona usuaria confirmó. Se separa para poder probar el flujo
+        sin depender de clics (RNF-10).
+        """
+
+        dialogo = DialogoPrevisualizacionSerie(
+            self,
+            vista_previa,
+            solo_consulta=solo_consulta,
         )
-        fecha_inicio = self.var_fecha.get().strip()
-        hora_inicio = self.var_hora.get().strip()
-        duracion = self.var_duracion.get().strip()
-        cantidad_personas = self.var_cantidad.get().strip()
-        cantidad_ocurrencias = self.var_ocurrencias.get().strip()
+
+        dialogo.grab_set()
+        self.wait_window(dialogo)
+
+        return dialogo.confirmado
+
+    def _obtener_vista_previa(self, datos):
+        """Devuelve la previsualización o None si no se pudo armar."""
 
         try:
-            resultado = crear_reservacion_recurrente(
-                carne=carne,
-                codigo_sala=codigo_sala,
-                fecha_inicio=fecha_inicio,
-                hora_inicio=hora_inicio,
-                duracion=duracion,
-                cantidad_personas=cantidad_personas,
-                cantidad_ocurrencias=cantidad_ocurrencias,
+            return previsualizar_serie_recurrente(**datos)
+
+        except ValueError as error:
+            messagebox.showerror(
+                "No se puede previsualizar la serie",
+                str(error),
+                parent=self,
             )
+
+        except Exception:
+            messagebox.showerror(
+                "Error",
+                (
+                    "Ocurrió un error inesperado. "
+                    "No fue posible previsualizar la serie."
+                ),
+                parent=self,
+            )
+
+        return None
+
+    @manejar_errores
+    def previsualizar(self):
+        """H-03. Muestra la serie y sus conflictos sin guardar nada."""
+
+        vista_previa = self._obtener_vista_previa(
+            self._datos_formulario()
+        )
+
+        if vista_previa is None:
+            return
+
+        self._mostrar_dialogo(
+            vista_previa,
+            solo_consulta=True,
+        )
+
+    @manejar_errores
+    def crear(self):
+        """
+        RF-14 / H-03. Muestra la previsualización con el resumen de
+        conflictos y solo guarda la serie si la persona la confirma.
+        """
+
+        datos = self._datos_formulario()
+
+        vista_previa = self._obtener_vista_previa(datos)
+
+        if vista_previa is None:
+            return
+
+        if not self._mostrar_dialogo(vista_previa):
+            # Volver y corregir: no se guarda nada.
+            return
+
+        try:
+            resultado = crear_reservacion_recurrente(**datos)
 
         except ValueError as error:
             messagebox.showerror(
@@ -337,6 +559,7 @@ class VistaReservacionRecurrente(VistaBase):
 
         if self.on_cambio is not None:
             self.on_cambio()
+
 
 def abrir_ventana_de_prueba():
     from database.inicializacion import inicializar_base_datos

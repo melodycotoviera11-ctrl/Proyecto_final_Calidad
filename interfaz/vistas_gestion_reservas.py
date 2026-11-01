@@ -17,7 +17,8 @@ from reservaciones.gestion_reservaciones import (
 
 from reservaciones.gestion_recurrencia import (
     obtener_serie_id,
-    cancelar_ocurrencias_futuras,
+    cancelar_serie_desde_ocurrencia,
+    previsualizar_cancelacion_desde_ocurrencia,
 )
 
 from interfaz.vistas_reservaciones import (
@@ -185,7 +186,7 @@ class VistaGestionReservaciones(ttk.Frame):
 
         ttk.Button(
             botones,
-            text="Cancelar futuras",
+            text="Cancelar esta y futuras",
             command=self.cancelar_ocurrencias_futuras,
         ).pack(
             side="left",
@@ -389,10 +390,11 @@ class VistaGestionReservaciones(ttk.Frame):
 
     def cancelar_ocurrencias_futuras(self):
         """
-        RF-14.
+        RF-14 / H-09.
 
-        Cancela todas las ocurrencias futuras de la serie
-        correspondiente a la reservación seleccionada.
+        Cancela la ocurrencia seleccionada y todas las posteriores de su
+        serie. Las ocurrencias anteriores a la seleccionada no se
+        modifican.
         """
 
         id_reservacion = self.var_id.get()
@@ -423,12 +425,48 @@ class VistaGestionReservaciones(ttk.Frame):
             )
             return
 
+        try:
+            vista_previa = previsualizar_cancelacion_desde_ocurrencia(
+                id_reservacion
+            )
+
+        except Exception:
+            messagebox.showerror(
+                "Error",
+                (
+                    "Ocurrió un error inesperado. "
+                    "La operación no se completó."
+                ),
+                parent=self,
+            )
+            return
+
+        if vista_previa is None or not vista_previa["ocurrencias"]:
+            messagebox.showwarning(
+                "No se cancelaron ocurrencias",
+                (
+                    "No existen ocurrencias futuras activas "
+                    "para cancelar a partir de la reservación "
+                    "seleccionada."
+                ),
+                parent=self,
+            )
+            return
+
+        fechas = ", ".join(
+            f"{o['fecha']} ({o['id']})"
+            for o in vista_previa["ocurrencias"]
+        )
+
         confirmar = messagebox.askyesno(
-            "Cancelar ocurrencias futuras",
+            "Cancelar esta y las siguientes ocurrencias",
             (
-                "¿Desea cancelar todas las ocurrencias "
-                "futuras de esta serie?\n\n"
-                "Las ocurrencias anteriores no serán modificadas."
+                f"Se cancelarán {len(vista_previa['ocurrencias'])} "
+                "ocurrencia(s) de la serie, desde la reservación "
+                f"{id_reservacion} en adelante.\n\n"
+                f"Fechas afectadas - {fechas}\n\n"
+                "Las ocurrencias anteriores no serán modificadas.\n"
+                "¿Desea continuar?"
             ),
             parent=self,
         )
@@ -437,8 +475,8 @@ class VistaGestionReservaciones(ttk.Frame):
             return
 
         try:
-            exito, mensaje, _ = cancelar_ocurrencias_futuras(
-                serie_id
+            exito, mensaje, _ = cancelar_serie_desde_ocurrencia(
+                id_reservacion
             )
 
             if not exito:
