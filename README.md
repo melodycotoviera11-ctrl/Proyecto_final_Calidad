@@ -14,12 +14,13 @@ La versión entregada se identifica con una etiqueta de Git y con el archivo `VE
 |---|---|
 | `version-candidata` | Versión de la Fase 2 evaluada por el Grupo 07 (commit `25adab2`). |
 | `version-corregida` | Versión de la Fase 6 con las correcciones de los hallazgos. |
+| `version-final` | Versión de la Fase 8 entregada para la aceptación. Incluye la corrección de BUG-F7-05. |
 
 Para ver el commit exacto de una versión:
 
 ```
 git fetch --tags
-git rev-list -n 1 version-corregida
+git rev-list -n 1 version-final
 ```
 
 ---
