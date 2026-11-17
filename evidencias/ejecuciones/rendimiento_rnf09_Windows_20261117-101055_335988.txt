@@ -1,0 +1,38 @@
+RNF-09 - Evidencia de rendimiento
+
+Ambiente de prueba
+Sistema operativo: Windows-11-10.0.26200-SP0
+Procesador: Intel64 Family 6 Model 140 Stepping 1, GenuineIntel
+Memoria RAM: 15.65 GB
+Python: 3.15.2
+
+Volumen de datos
+Estudiantes: 1000
+Reservaciones: 5000
+
+Resultados
+Consulta general de reservaciones:
+  Ejecución 1: 0.018317 segundos
+  Ejecución 2: 0.021204 segundos
+  Ejecución 3: 0.027036 segundos
+  Tiempo máximo: 0.027036 segundos
+
+Búsqueda por carné:
+  Ejecución 1: 0.001095 segundos
+  Ejecución 2: 0.001138 segundos
+  Ejecución 3: 0.000849 segundos
+  Tiempo máximo: 0.001138 segundos
+
+Consulta de disponibilidad:
+  Ejecución 1: 0.022991 segundos
+  Ejecución 2: 0.000882 segundos
+  Ejecución 3: 0.000853 segundos
+  Tiempo máximo: 0.022991 segundos
+
+Carga del panel principal:
+  Ejecución 1: 0.017582 segundos
+  Ejecución 2: 0.016813 segundos
+  Ejecución 3: 0.016865 segundos
+  Tiempo máximo: 0.017582 segundos
+
+Criterio: cada ejecución debe responder en menos de 2 segundos.
