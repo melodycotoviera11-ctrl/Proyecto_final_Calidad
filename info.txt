@@ -1,0 +1,16 @@
+Curso: TI-3603 Calidad en Sistemas de Información
+Semestre: II Semestre 2026
+Profesor: Néstor Morales Rodríguez
+Grupo: 4
+Proyecto: Sistema de Reservación de Salas de Estudio
+
+Integrantes:
+Valeria Abarca Chacón    Carné: __________
+Pamela Cruz Segura       Carné: __________
+Sergio Mena Campos       Carné: __________
+Melody Coto Viera        Carné: 2024224269
+
+Versión: version-final (commit 86e72ee)
+Repositorio: https://github.com/melodycotoviera11-ctrl/Proyecto_final_Calidad
+Fecha de entrega: 20 de noviembre de 2026
+Estatus: Excelente
