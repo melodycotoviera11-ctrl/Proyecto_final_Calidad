@@ -11,11 +11,17 @@ aplicando solo los filtros de sala y estado.
 La lógica se separó de la vista para poder probarla sin automatizar
 clics sobre la interfaz (RNF-10), tal como recomienda H-01 y H-07.
 
+Corrección de BUG-F7-05 (Fase 7, Grupo 8): date.fromisoformat() acepta
+desde Python 3.11 formatos ISO distintos de AAAA-MM-DD, como 20261110 o
+2030-W01-1. Ahora el filtro de fecha exige exactamente AAAA-MM-DD, igual
+que validar_fecha() en reservaciones/validaciones.py (RN-02).
+
 Cada fila tiene el formato de consultar_reservaciones():
     (id, carne, estudiante, codigo_sala, sala, fecha,
      hora_inicio, hora_fin, cantidad_personas, estado)
 """
 
+import re
 from datetime import date, datetime
 
 LIMITE_PROXIMAS = 8
@@ -23,6 +29,8 @@ LIMITE_PROXIMAS = 8
 SALA_TODAS = "Todas"
 ESTADO_TODOS = "todos"
 ESTADOS_VALIDOS = (ESTADO_TODOS, "activa", "cancelada")
+
+_PATRON_FECHA = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 MENSAJE_SIN_RESULTADOS = "No hay reservaciones para los filtros seleccionados."
 
@@ -43,6 +51,8 @@ def interpretar_filtros(fecha="", sala="", estado=""):
     estado = (estado or "").strip().lower() or ESTADO_TODOS
 
     if fecha:
+        if not _PATRON_FECHA.match(fecha):
+            raise ValueError("La fecha debe tener formato AAAA-MM-DD.")
         try:
             date.fromisoformat(fecha)
         except ValueError:

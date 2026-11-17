@@ -1,14 +1,19 @@
-Versión: version-corregida
-Fase: Fase 6. Corrección y verificación
+Versión: version-final
+Fase: Fase 8. Aceptación y cierre
 Equipo desarrollador: Grupo 4
 Repositorio: https://github.com/melodycotoviera11-ctrl/Proyecto_final_Calidad
 
-Versión de partida: version-candidata
-Commit de partida: 25adab21f26a3488ec0f0eebac9ce5257fed73f5 (rama main)
-Corresponde al archivo Fase_2_-_Grupo_4.zip evaluado por el Grupo 07 en la Fase 3
-SHA-256 del ZIP evaluado: 77fdb87ef54c20a1fc735b781c842d84f7bc2a681a6c83a350788d662fede22c
+Versión anterior: version-corregida (Fase 6)
+Commit de la versión anterior: 0eb0f3fc98edd5d677ddc9520778f37c5632bd83 (rama main)
+Cambio respecto de la versión anterior: corrección de BUG-F7-05, reportado por el Grupo 8 en la Fase 7
+(el filtro de fecha del panel principal exige el formato AAAA-MM-DD).
+
+Historial de versiones:
+  version-candidata  Fase 2, evaluada por el Grupo 07 en la Fase 3 (commit 25adab2)
+  version-corregida  Fase 6, correcciones de los 14 hallazgos de la Fase 3 (commit 0eb0f3f)
+  version-final      Fase 8, versión entregada para la aceptación
 
 Cómo identificar la versión exacta:
   git fetch --tags
-  git rev-list -n 1 version-corregida
-El commit que muestra este comando es la versión entregada en la Fase 6.
+  git rev-list -n 1 version-final
+El commit que muestra este comando es la versión entregada en la Fase 8.
