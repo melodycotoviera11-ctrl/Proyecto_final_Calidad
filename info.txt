@@ -7,7 +7,7 @@ Proyecto: Sistema de Reservación de Salas de Estudio
 Integrantes:
 Valeria Abarca Chacón    Carné: __________
 Pamela Cruz Segura       Carné: 2024230430
-Sergio Mena Campos       Carné: __________
+Sergio Mena Campos       Carné: 2023395826
 Melody Coto Viera        Carné: 2024224269
 
 Versión: version-final (commit 86e72ee)
